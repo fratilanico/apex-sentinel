@@ -41,4 +41,5 @@ export interface NodeRegistryEntry extends NodeRegistration {
   lastHeartbeatUs: bigint;
   isOnline: boolean;
   missedHeartbeats: number;
+  activeCapabilities?: NodeCapability[];
 }
