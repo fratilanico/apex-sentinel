@@ -1,10 +1,39 @@
-// APEX-SENTINEL — TDD RED Tests
+// APEX-SENTINEL — TDD Tests
 // FR-W2-11: CoT Relay (Cursor on Target TCP/UDP relay)
-// Status: RED — implementation in src/relay/cot-relay.ts NOT_IMPLEMENTED
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CotRelay, validateCotXml } from '../../src/relay/cot-relay.js';
 import type { CotRelayConfig, CotPacket } from '../../src/relay/cot-relay.js';
+
+// ── Mock net and dgram for connection/send tests ──────────────────────────────
+
+// Shared mutable mock socket — tests can replace write/send to simulate errors
+const mockTcpSocketWrite = vi.fn((_data: string, cb: (err?: Error) => void) => { cb(); });
+const mockTcpSocket = {
+  connect: vi.fn(function (_port: number, _host: string, cb: () => void) { cb(); }),
+  write: (...args: Parameters<typeof mockTcpSocketWrite>) => mockTcpSocketWrite(...args),
+  destroy: vi.fn(),
+  on: vi.fn(function () { return mockTcpSocket; }),
+};
+
+vi.mock('net', () => {
+  // Use a regular function (not arrow) so it can be called with `new`
+  // When a constructor returns an object, `new` returns that object
+  function MockSocket(this: unknown) { return mockTcpSocket; }
+  return { Socket: MockSocket };
+});
+
+const mockUdpSend = vi.fn(
+  (_buf: Buffer, _port: number, _host: string, cb: (err?: Error) => void) => { cb(); }
+);
+const mockUdpSocket = {
+  send: (...args: Parameters<typeof mockUdpSend>) => mockUdpSend(...args),
+  close: vi.fn(),
+};
+
+vi.mock('dgram', () => ({
+  createSocket: vi.fn(() => mockUdpSocket),
+}));
 
 const DEFAULT_CONFIG: CotRelayConfig = {
   host: '127.0.0.1',
@@ -177,5 +206,122 @@ describe('FR-W2-11-11: send() when not connected calls bufferPacket and returns 
     expect(relay.getQueueSize()).toBe(1);
     const flushed = relay.flushBuffer();
     expect(flushed[0].trackId).toBe('TRK-BUFFERED');
+  });
+});
+
+// ── Connection tests (lines 55-83) ───────────────────────────────────────────
+
+describe('FR-W2-11-12: connect() TCP — marks connected and wires socket', async () => {
+  it('should mark isConnected() true after TCP connect succeeds', async () => {
+    const relay = new CotRelay(DEFAULT_CONFIG);
+    expect(relay.isConnected()).toBe(false);
+    await relay.connect();
+    expect(relay.isConnected()).toBe(true);
+  });
+});
+
+describe('FR-W2-11-13: connect() UDP — marks connected without network socket', async () => {
+  it('should mark isConnected() true after UDP connect (connectionless)', async () => {
+    const relay = new CotRelay({ ...DEFAULT_CONFIG, protocol: 'udp' });
+    expect(relay.isConnected()).toBe(false);
+    await relay.connect();
+    expect(relay.isConnected()).toBe(true);
+  });
+});
+
+describe('FR-W2-11-14: disconnect() — marks not connected and destroys TCP socket', () => {
+  it('should mark isConnected() false after disconnect on TCP relay', async () => {
+    const relay = new CotRelay(DEFAULT_CONFIG);
+    await relay.connect();
+    expect(relay.isConnected()).toBe(true);
+    relay.disconnect();
+    expect(relay.isConnected()).toBe(false);
+  });
+
+  it('should mark isConnected() false after disconnect on UDP relay', async () => {
+    const relay = new CotRelay({ ...DEFAULT_CONFIG, protocol: 'udp' });
+    await relay.connect();
+    relay.disconnect();
+    expect(relay.isConnected()).toBe(false);
+  });
+});
+
+// ── Send when connected (lines 92-121) ───────────────────────────────────────
+
+describe('FR-W2-11-15: send() TCP — returns true on successful write', async () => {
+  it('should return true when TCP socket write succeeds', async () => {
+    const relay = new CotRelay(DEFAULT_CONFIG);
+    await relay.connect();
+    const result = await relay.send(makePacket());
+    expect(result).toBe(true);
+  });
+
+  it('should not buffer packet when TCP send succeeds', async () => {
+    const relay = new CotRelay(DEFAULT_CONFIG);
+    await relay.connect();
+    await relay.send(makePacket());
+    expect(relay.getQueueSize()).toBe(0);
+  });
+});
+
+describe('FR-W2-11-16: send() TCP — buffers and returns false on write error', async () => {
+  it('should return false and buffer packet when TCP write fails', async () => {
+    // Override the shared write mock to simulate a socket error
+    mockTcpSocketWrite.mockImplementationOnce((_data: string, cb: (err?: Error) => void) => {
+      cb(new Error('ECONNRESET'));
+    });
+
+    const relay = new CotRelay(DEFAULT_CONFIG);
+    await relay.connect();
+    const result = await relay.send(makePacket({ trackId: 'TRK-ERR' }));
+    expect(result).toBe(false);
+    expect(relay.getQueueSize()).toBe(1);
+    const flushed = relay.flushBuffer();
+    expect(flushed[0].trackId).toBe('TRK-ERR');
+  });
+});
+
+describe('FR-W2-11-17: send() UDP — returns true on successful datagram send', async () => {
+  it('should return true when UDP send succeeds', async () => {
+    const relay = new CotRelay({ ...DEFAULT_CONFIG, protocol: 'udp' });
+    await relay.connect();
+    const result = await relay.send(makePacket());
+    expect(result).toBe(true);
+  });
+
+  it('should not buffer packet when UDP send succeeds', async () => {
+    const relay = new CotRelay({ ...DEFAULT_CONFIG, protocol: 'udp' });
+    await relay.connect();
+    await relay.send(makePacket());
+    expect(relay.getQueueSize()).toBe(0);
+  });
+});
+
+describe('FR-W2-11-18: send() UDP — buffers and returns false on dgram error', async () => {
+  it('should return false and buffer packet when UDP send fails', async () => {
+    mockUdpSend.mockImplementationOnce(
+      (_buf: Buffer, _port: number, _host: string, cb: (err?: Error) => void) => {
+        cb(new Error('ENETUNREACH'));
+      }
+    );
+
+    const relay = new CotRelay({ ...DEFAULT_CONFIG, protocol: 'udp' });
+    await relay.connect();
+    const result = await relay.send(makePacket({ trackId: 'TRK-UDP-ERR' }));
+    expect(result).toBe(false);
+    expect(relay.getQueueSize()).toBe(1);
+  });
+});
+
+describe('FR-W2-11-19: flushBuffer() preserves FIFO order', () => {
+  it('should return packets in insertion order (FIFO — critical for TDoA correlation)', () => {
+    const relay = new CotRelay(DEFAULT_CONFIG);
+    relay.bufferPacket(makePacket({ trackId: 'TRK-A', timestamp: 1000 }));
+    relay.bufferPacket(makePacket({ trackId: 'TRK-B', timestamp: 2000 }));
+    relay.bufferPacket(makePacket({ trackId: 'TRK-C', timestamp: 3000 }));
+    const flushed = relay.flushBuffer();
+    expect(flushed[0].trackId).toBe('TRK-A');
+    expect(flushed[1].trackId).toBe('TRK-B');
+    expect(flushed[2].trackId).toBe('TRK-C');
   });
 });

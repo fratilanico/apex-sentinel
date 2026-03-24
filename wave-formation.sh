@@ -27,7 +27,8 @@ notify() {
 
 cmd_mind_the_gap() {
   echo -e "${BOLD}══════════════════════════════════════════════════${RESET}"
-  echo -e "${BOLD}  APEX-SENTINEL — Mind-the-Gap 8-Point Audit      ${RESET}"
+  echo -e "${BOLD}  APEX-SENTINEL — Mind-the-Gap 14-Point Audit     ${RESET}"
+  echo -e "${BOLD}  Checks 1-8: TDD/Code · Checks 9-14: FDRP        ${RESET}"
   echo -e "${BOLD}══════════════════════════════════════════════════${RESET}"
 
   local pass=0 fail_count=0
@@ -153,20 +154,175 @@ cmd_mind_the_gap() {
     pass=$((pass + 1))
   fi
 
+  # ── Check 9: Security posture — git log credential scan + mTLS config ────
+  echo -e "\n${CYAN}Check 9 [SEC]: Security posture — git log scan + mTLS config...${RESET}"
+  local git_cred_leak mtls_present
+  git_cred_leak=$(git -C "${REPO_ROOT}" log --all --oneline -30 2>/dev/null \
+    | xargs -I{} git -C "${REPO_ROOT}" show {} -- 2>/dev/null \
+    | grep -iE "(api.?key|password|secret|service.?role|supabase.*anon)" \
+    | grep -v "^Binary\|placeholder\|example\|your.*key\|<\|#" \
+    | head -5 || true)
+  mtls_present=$(grep -rn "certFile\|keyFile\|caFile\|tls\." \
+    "${REPO_ROOT}/src/nats/auth-config.ts" 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+  local sec_fail=0
+  if [[ -n "$git_cred_leak" ]]; then
+    echo -e "${YELLOW}[!] Possible credential in git history:${RESET}"
+    echo "$git_cred_leak"
+    sec_fail=1
+  fi
+  if [[ "${mtls_present:-0}" -lt 1 ]]; then
+    echo -e "${YELLOW}[!] mTLS config not found in src/nats/auth-config.ts${RESET}"
+    sec_fail=1
+  fi
+  if [[ $sec_fail -eq 0 ]]; then
+    echo -e "${GREEN}[✓] Check 9 PASS — No git credential leaks, mTLS config present${RESET}"
+    pass=$((pass + 1))
+  else
+    fail_count=$((fail_count + 1))
+  fi
+
+  # ── Check 10: Operator UX — CoT type codes + keyboard shortcuts ───────────
+  echo -e "\n${CYAN}Check 10 [PUX]: Operator UX — ATAK CoT types + keyboard shortcuts...${RESET}"
+  local cot_fpv cot_shahed kb_shortcuts
+  cot_fpv=$(grep -rn "a-h-A-M-F-Q\|fpv_drone\|FPV" \
+    "${REPO_ROOT}/src" --include="*.ts" 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
+  cot_shahed=$(grep -rn "a-h-A-C-F\|shahed\|Shahed" \
+    "${REPO_ROOT}/src" --include="*.ts" 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
+  kb_shortcuts=$([ -f "${REPO_ROOT}/src/dashboard/keyboard-shortcuts.ts" ] && echo "1" || echo "0")
+  local ux_fail=0
+  if [[ "${cot_fpv:-0}" -lt 1 ]]; then
+    echo -e "${YELLOW}[!] FPV CoT type code (a-h-A-M-F-Q) not found in src/${RESET}"
+    ux_fail=1
+  fi
+  if [[ "${cot_shahed:-0}" -lt 1 ]]; then
+    echo -e "${YELLOW}[!] Shahed CoT type code (a-h-A-C-F) not found in src/${RESET}"
+    ux_fail=1
+  fi
+  if [[ "${kb_shortcuts:-0}" -lt 1 ]]; then
+    echo -e "${YELLOW}[!] KeyboardShortcuts not found in src/dashboard/${RESET}"
+    ux_fail=1
+  fi
+  if [[ $ux_fail -eq 0 ]]; then
+    echo -e "${GREEN}[✓] Check 10 PASS — FPV+Shahed CoT types present, keyboard shortcuts wired${RESET}"
+    pass=$((pass + 1))
+  else
+    fail_count=$((fail_count + 1))
+  fi
+
+  # ── Check 11: Mission viability — all 5 pipeline gates have source files ──
+  echo -e "\n${CYAN}Check 11 [MIS]: Mission viability — 5-gate pipeline completeness...${RESET}"
+  local gate_acoustic gate_rf gate_tdoa gate_nats gate_relay
+  gate_acoustic=$([ -f "${REPO_ROOT}/src/acoustic/pipeline.ts" ] && echo "1" || echo "0")
+  gate_rf=$([ -f "${REPO_ROOT}/src/rf/rssi-baseline.ts" ] && echo "1" || echo "0")
+  gate_tdoa=$([ -f "${REPO_ROOT}/src/tracking/tdoa.ts" ] && echo "1" || echo "0")
+  gate_nats=$([ -f "${REPO_ROOT}/src/nats/stream-config.ts" ] && echo "1" || echo "0")
+  gate_relay=$([ -f "${REPO_ROOT}/src/relay/cot-relay.ts" ] && echo "1" || echo "0")
+  local gates_present=$(( gate_acoustic + gate_rf + gate_tdoa + gate_nats + gate_relay ))
+  # Check W5 EKF (prediction engine) — AMBER if missing
+  local ekf_present
+  ekf_present=$([ -f "${REPO_ROOT}/src/prediction/ekf.ts" ] && echo "1" || echo "0")
+  if [[ "${gates_present:-0}" -lt 5 ]]; then
+    echo -e "${YELLOW}[!] Only ${gates_present}/5 pipeline gate source files present${RESET}"
+    fail_count=$((fail_count + 1))
+  else
+    if [[ "${ekf_present:-0}" -lt 1 ]]; then
+      echo -e "${GREEN}[✓] Check 11 PASS — 5/5 pipeline gates present${RESET}"
+      echo -e "${YELLOW}    [AMBER] W5 EKF (src/prediction/ekf.ts) not yet built — TDD RED next${RESET}"
+    else
+      echo -e "${GREEN}[✓] Check 11 PASS — 5/5 pipeline gates + EKF prediction engine present${RESET}"
+    fi
+    pass=$((pass + 1))
+  fi
+
+  # ── Check 12: Detection data quality — CotRelay coverage RED flag ─────────
+  echo -e "\n${CYAN}Check 12 [DAT]: Detection data quality — module coverage audit...${RESET}"
+  local cov_out relay_stmt relay_branch
+  cov_out=$(cd "${REPO_ROOT}" && npx vitest run --coverage --reporter=verbose 2>&1 || true)
+  # Extract relay coverage — format: " cot-relay.ts  | XX.XX |"
+  relay_stmt=$(echo "$cov_out" | grep "cot-relay" | grep -oE "\|\s+[0-9]+\.[0-9]+" | head -1 | grep -oE "[0-9]+\.[0-9]+" || echo "0")
+  relay_branch=$(echo "$cov_out" | grep "cot-relay" | grep -oE "\|\s+[0-9]+\.[0-9]+" | sed -n '2p' | grep -oE "[0-9]+\.[0-9]+" || echo "0")
+  local relay_stmt_int
+  relay_stmt_int=$(echo "$relay_stmt" | cut -d. -f1)
+  if [[ "${relay_stmt_int:-0}" -lt 80 ]]; then
+    echo -e "${RED}[✗] Check 12 FAIL — CotRelay stmt coverage: ${relay_stmt}% (RED threshold: <80%)${RESET}"
+    echo -e "${RED}    CRITICAL: CoT relay is the C2 output — untested paths = silent operator blind${RESET}"
+    fail_count=$((fail_count + 1))
+  else
+    echo -e "${GREEN}[✓] Check 12 PASS — CotRelay coverage: ${relay_stmt}% stmt${RESET}"
+    pass=$((pass + 1))
+  fi
+
+  # ── Check 13: Regulatory/GDPR — LocationCoarsener + no raw storage ────────
+  echo -e "\n${CYAN}Check 13 [REG]: Regulatory/GDPR — privacy architecture completeness...${RESET}"
+  local coarsener_tests privacy_doc dpia_note
+  coarsener_tests=$(grep -c "FR-24-" \
+    "${REPO_ROOT}/tests/privacy/FR-24-privacy.test.ts" 2>/dev/null || echo "0")
+  privacy_doc=$([ -f "${REPO_ROOT}/docs/waves/W1/PRIVACY_ARCHITECTURE.md" ] && echo "1" || echo "0")
+  dpia_note=$(grep -rn "DPIA\|Data Protection Impact\|Article 35" \
+    "${REPO_ROOT}/docs" --include="*.md" 2>/dev/null | wc -l | tr -d ' ' || echo "0")
+  local reg_fail=0
+  if [[ "${coarsener_tests:-0}" -lt 9 ]]; then
+    echo -e "${YELLOW}[!] LocationCoarsener has only ${coarsener_tests} FR-24 tests (need ≥9)${RESET}"
+    reg_fail=1
+  fi
+  if [[ "${privacy_doc:-0}" -lt 1 ]]; then
+    echo -e "${YELLOW}[!] PRIVACY_ARCHITECTURE.md not found in docs/waves/W1/${RESET}"
+    reg_fail=1
+  fi
+  if [[ "${dpia_note:-0}" -lt 1 ]]; then
+    echo -e "${YELLOW}[!] No DPIA reference in docs/ — Article 35 required for biometric-adjacent audio processing${RESET}"
+    reg_fail=1
+  fi
+  if [[ $reg_fail -eq 0 ]]; then
+    echo -e "${GREEN}[✓] Check 13 PASS — ${coarsener_tests} FR-24 GDPR tests, privacy arch doc, DPIA referenced${RESET}"
+    pass=$((pass + 1))
+  else
+    fail_count=$((fail_count + 1))
+  fi
+
+  # ── Check 14: Human factors — no pipe chars in Telegram + alert matrix ────
+  echo -e "\n${CYAN}Check 14 [HF]: Human factors — Telegram format + alert classification...${RESET}"
+  local pipe_violations alert_matrix
+  # Detect pipe chars in Telegram message string literals only
+  # Pattern: quoted string containing " | " (table-format pipe in a message string)
+  pipe_violations=$(grep -rn --include="*.ts" \
+    -E '`[^`]*\|[^`]*`|"[^"]*\|[^"]*"' \
+    "${REPO_ROOT}/src/alerts" 2>/dev/null \
+    | grep -v "//\|regex\|split\|replace\|indexOf\|join\|=>" || true)
+  alert_matrix=$(grep -c "critical\|high\|medium\|low" \
+    "${REPO_ROOT}/src/dashboard/alert-store.ts" 2>/dev/null || echo "0")
+  local hf_fail=0
+  if [[ -n "$pipe_violations" ]]; then
+    echo -e "${YELLOW}[!] Possible pipe chars in Telegram alert src (breaks Telegram tables):${RESET}"
+    echo "$pipe_violations" | head -5
+    hf_fail=1
+  fi
+  if [[ "${alert_matrix:-0}" -lt 4 ]]; then
+    echo -e "${YELLOW}[!] Alert classification matrix incomplete — need critical/high/medium/low${RESET}"
+    hf_fail=1
+  fi
+  if [[ $hf_fail -eq 0 ]]; then
+    echo -e "${GREEN}[✓] Check 14 PASS — No pipe chars in alerts, 4-level threat matrix present${RESET}"
+    pass=$((pass + 1))
+  else
+    fail_count=$((fail_count + 1))
+  fi
+
   # ── Summary ───────────────────────────────────────────────────────────────
   echo ""
   echo -e "${BOLD}══════════════════════════════════════════════════${RESET}"
-  echo -e "${BOLD}  Mind-the-Gap Results: ${pass}/8 checks passed    ${RESET}"
+  echo -e "${BOLD}  Mind-the-Gap Results: ${pass}/14 checks passed   ${RESET}"
+  echo -e "${BOLD}  Checks 1-8: TDD/Code · 9-14: FDRP Dimensional   ${RESET}"
   echo -e "${BOLD}══════════════════════════════════════════════════${RESET}"
 
   if [[ $fail_count -eq 0 ]]; then
-    echo -e "\n${GREEN}${BOLD}[✓] ALL 8 CHECKS PASSED — exit 0 ✓${RESET}"
-    echo -e "${GREEN}8/8 PASS. APEX-SENTINEL W1 is real.${RESET}"
-    notify "mind-the-gap 8/8 PASS — W1 clean"
+    echo -e "\n${GREEN}${BOLD}[✓] ALL 14 CHECKS PASSED — exit 0 ✓${RESET}"
+    echo -e "${GREEN}14/14 PASS. APEX-SENTINEL is real.${RESET}"
+    notify "mind-the-gap 14/14 PASS — all dimensions clean"
     exit 0
   else
     echo -e "\n${RED}${BOLD}[✗] ${fail_count} CHECK(S) FAILED — fix before claiming done${RESET}"
-    notify "mind-the-gap ${pass}/8 — ${fail_count} failures"
+    notify "mind-the-gap ${pass}/14 — ${fail_count} failures"
     exit 1
   fi
 }
