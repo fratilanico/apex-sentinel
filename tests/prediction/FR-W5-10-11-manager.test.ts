@@ -105,10 +105,11 @@ describe('FR-W5-10-00: MultiTrackEKFManager', () => {
   });
 
   it('FR-W5-10-06: state does not cross-contaminate between different trackIds', () => {
-    const det1a = makeDetection('TRK-X', 0);
-    const det1b = makeDetection('TRK-X', 1);
-    const det2a = makeDetection('TRK-Y', 0);
-    const det2b = makeDetection('TRK-Y', 1);
+    const det1a = makeDetection('TRK-X', 0);  // lat: 51.5
+    const det1b = makeDetection('TRK-X', 1);  // lat: 51.5001
+    // TRK-Y uses distinctly different position (seq=100 → lat ≈ 51.51)
+    const det2a = makeDetection('TRK-Y', 100);
+    const det2b = makeDetection('TRK-Y', 101);
 
     manager.processDetection(det1a);
     manager.processDetection(det2a);
@@ -228,8 +229,10 @@ describe('FR-W5-11-00: EKF Coast (Dead-Reckoning)', () => {
 
     const stateA = managerA.getTrackState('TRK-A');
     const stateB = managerB.getTrackState('TRK-B');
-    // They should differ because B coasted 2s before updating
-    expect(stateA!.lat).not.toBeCloseTo(stateB!.lat, 8);
+    // They should differ because B coasted 2s before updating.
+    // After convergence, position updates collapse to the measurement (K≈1),
+    // but velocity estimates diverge due to different innovations.
+    expect(stateA!.vLat).not.toBeCloseTo(stateB!.vLat, 8);
   });
 
   it('FR-W5-11-05: coastTrack on unknown trackId logs warn, does not crash', () => {
