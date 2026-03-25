@@ -308,21 +308,119 @@ cmd_mind_the_gap() {
     fail_count=$((fail_count + 1))
   fi
 
+  # ── Check 15: Oracle coverage — per-profile recall gate tests present ────
+  echo -e "\n${CYAN}Check 15 [QA-ORACLE]: Per-profile recall gate tests present...${RESET}"
+  local oracle_tests
+  oracle_tests=$(grep -rn --include="*.test.ts" \
+    -E "(recall|precision|F1|per.profile|FR-OR-|oracle)" \
+    "${REPO_ROOT}/tests" 2>/dev/null | grep -v "node_modules" || true)
+  local oracle_count
+  oracle_count=$(echo "$oracle_tests" | grep -c "." || true)
+  if [[ $oracle_count -lt 3 ]]; then
+    echo -e "${RED}[✗] Check 15 FAIL — Only ${oracle_count} oracle/recall tests found (need ≥3)${RESET}"
+    echo -e "${RED}    Required: per-profile recall gates (Shahed-131, Shahed-238, Gerbera)${RESET}"
+    echo -e "${RED}    Add tests: tests/ml/FR-W7-oracle-recall-gates.test.ts${RESET}"
+    fail_count=$((fail_count + 1))
+  else
+    echo -e "${GREEN}[✓] Check 15 PASS — ${oracle_count} oracle/recall gate tests found${RESET}"
+    pass=$((pass + 1))
+  fi
+
+  # ── Check 16: Mutation report present (Stryker) ────────────────────────
+  echo -e "\n${CYAN}Check 16 [QA-MUTATION]: Stryker mutation report or config present...${RESET}"
+  local stryker_config
+  stryker_config=$(find "${REPO_ROOT}" -maxdepth 2 \
+    \( -name "stryker.config.json" -o -name "stryker.config.cjs" -o -name ".stryker.json" \) \
+    2>/dev/null | head -1 || true)
+  if [[ -z "$stryker_config" ]]; then
+    echo -e "${RED}[✗] Check 16 FAIL — No Stryker config found${RESET}"
+    echo -e "${RED}    CRP mutant (22050 vs 16000) slipped through W6 without mutation testing${RESET}"
+    echo -e "${RED}    Create: stryker.config.json (see docs/analysis/FUTURE-SQA-BOOK-IMPLEMENTATION.md Part 3)${RESET}"
+    fail_count=$((fail_count + 1))
+  else
+    echo -e "${GREEN}[✓] Check 16 PASS — Stryker config found: ${stryker_config}${RESET}"
+    pass=$((pass + 1))
+  fi
+
+  # ── Check 17: TGA — critical functions covered (AcousticProfileLibrary, FPG, TerminalPhaseDetector) ──
+  echo -e "\n${CYAN}Check 17 [QA-TGA]: Critical function coverage — acoustic core + terminal phase...${RESET}"
+  local tga_fail=0
+  for critical_module in \
+    "AcousticProfileLibrary" \
+    "FalsePositiveGuard" \
+    "TerminalPhaseDetector" \
+    "YAMNetFineTuner"; do
+    local test_count
+    test_count=$(grep -rl --include="*.test.ts" "$critical_module" \
+      "${REPO_ROOT}/tests" 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$test_count" -eq 0 ]]; then
+      echo -e "${RED}  [✗] ${critical_module}: 0 test files reference this module (TGA gap)${RESET}"
+      tga_fail=$((tga_fail + 1))
+    else
+      echo -e "${GREEN}  [✓] ${critical_module}: ${test_count} test file(s) cover it${RESET}"
+    fi
+  done
+  if [[ $tga_fail -gt 0 ]]; then
+    echo -e "${RED}[✗] Check 17 FAIL — ${tga_fail} critical module(s) have no test coverage${RESET}"
+    fail_count=$((fail_count + 1))
+  else
+    echo -e "${GREEN}[✓] Check 17 PASS — All 4 critical modules have test coverage${RESET}"
+    pass=$((pass + 1))
+  fi
+
+  # ── Check 18: Learning-safety decoupling — training must not affect inference ──
+  echo -e "\n${CYAN}Check 18 [QA-LEARNGATE]: Learning-safety decoupling test present...${RESET}"
+  local learngate_tests
+  learngate_tests=$(grep -rn --include="*.test.ts" \
+    -E "(learning.safety|learn.*safe|train.*classify|promote.*model|model.*promo|FR-OR-05|decoupl)" \
+    "${REPO_ROOT}/tests" 2>/dev/null | grep -v "node_modules" || true)
+  local learngate_count
+  learngate_count=$(echo "$learngate_tests" | grep -c "." || true)
+  if [[ $learngate_count -eq 0 ]]; then
+    echo -e "${RED}[✗] Check 18 FAIL — No learning-safety decoupling tests found${RESET}"
+    echo -e "${RED}    German Ethics Commission requirement: YAMNetFineTuner.train() must NOT${RESET}"
+    echo -e "${RED}    change AcousticProfileLibrary.classify() output during live operation${RESET}"
+    echo -e "${RED}    Add: tests/ml/FR-W7-learning-safety-decoupling.test.ts${RESET}"
+    fail_count=$((fail_count + 1))
+  else
+    echo -e "${GREEN}[✓] Check 18 PASS — ${learngate_count} learning-safety decoupling test(s) found${RESET}"
+    pass=$((pass + 1))
+  fi
+
+  # ── Check 19: Fail-operational — subsystem failure must not emit false all-clear ──
+  echo -e "\n${CYAN}Check 19 [QA-FAILOP]: Fail-operational tests — subsystem failure handling...${RESET}"
+  local failop_tests
+  failop_tests=$(grep -rn --include="*.test.ts" \
+    -E "(fail.operational|failop|subsystem.*fail|pipeline.*fail|all.clear|FAIL_OP|FR-FAILOP)" \
+    "${REPO_ROOT}/tests" 2>/dev/null | grep -v "node_modules" || true)
+  local failop_count
+  failop_count=$(echo "$failop_tests" | grep -c "." || true)
+  if [[ $failop_count -eq 0 ]]; then
+    echo -e "${RED}[✗] Check 19 FAIL — No fail-operational tests found${RESET}"
+    echo -e "${RED}    IEC 61508 / Linz requirement: system must NOT silently degrade${RESET}"
+    echo -e "${RED}    When acoustic pipeline fails, RF detection must continue — no false all-clear${RESET}"
+    echo -e "${RED}    Add: tests/detection/FR-W7-fail-operational.test.ts${RESET}"
+    fail_count=$((fail_count + 1))
+  else
+    echo -e "${GREEN}[✓] Check 19 PASS — ${failop_count} fail-operational test(s) found${RESET}"
+    pass=$((pass + 1))
+  fi
+
   # ── Summary ───────────────────────────────────────────────────────────────
   echo ""
-  echo -e "${BOLD}══════════════════════════════════════════════════${RESET}"
-  echo -e "${BOLD}  Mind-the-Gap Results: ${pass}/14 checks passed   ${RESET}"
-  echo -e "${BOLD}  Checks 1-8: TDD/Code · 9-14: FDRP Dimensional   ${RESET}"
-  echo -e "${BOLD}══════════════════════════════════════════════════${RESET}"
+  echo -e "${BOLD}══════════════════════════════════════════════════════════════${RESET}"
+  echo -e "${BOLD}  Mind-the-Gap Results: ${pass}/19 checks passed               ${RESET}"
+  echo -e "${BOLD}  Checks 1-8: TDD/Code · 9-14: FDRP · 15-19: SQA-Book QA     ${RESET}"
+  echo -e "${BOLD}══════════════════════════════════════════════════════════════${RESET}"
 
   if [[ $fail_count -eq 0 ]]; then
-    echo -e "\n${GREEN}${BOLD}[✓] ALL 14 CHECKS PASSED — exit 0 ✓${RESET}"
-    echo -e "${GREEN}14/14 PASS. APEX-SENTINEL is real.${RESET}"
-    notify "mind-the-gap 14/14 PASS — all dimensions clean"
+    echo -e "\n${GREEN}${BOLD}[✓] ALL 19 CHECKS PASSED — exit 0 ✓${RESET}"
+    echo -e "${GREEN}19/19 PASS. APEX-SENTINEL is real.${RESET}"
+    notify "mind-the-gap 19/19 PASS — all dimensions clean"
     exit 0
   else
     echo -e "\n${RED}${BOLD}[✗] ${fail_count} CHECK(S) FAILED — fix before claiming done${RESET}"
-    notify "mind-the-gap ${pass}/14 — ${fail_count} failures"
+    notify "mind-the-gap ${pass}/19 — ${fail_count} failures"
     exit 1
   fi
 }

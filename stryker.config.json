@@ -1,0 +1,48 @@
+{
+  "$schema": "https://stryker-mutator.io/schemas/stryker-config.json",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "mutate": [
+    "src/acoustic/AcousticProfileLibrary.ts",
+    "src/detection/FalsePositiveGuard.ts",
+    "src/detection/TerminalPhaseDetector.ts",
+    "src/ml/YAMNetFineTuner.ts",
+    "src/fusion/MultiNodeFusion.ts",
+    "src/prediction/MonteCarloPropagator.ts",
+    "src/pipeline/SentinelPipeline.ts"
+  ],
+  "mutator": {
+    "plugins": ["@stryker-mutator/javascript-mutator"],
+    "excludedMutations": []
+  },
+  "coverageAnalysis": "perTest",
+  "reporters": ["html", "json", "progress"],
+  "htmlReporter": {
+    "fileName": "coverage/mutation/report.html"
+  },
+  "jsonReporter": {
+    "fileName": "coverage/mutation/report.json"
+  },
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 50
+  },
+  "timeoutMS": 10000,
+  "timeoutFactor": 1.5,
+  "concurrency": 4,
+  "comment": [
+    "Operator priority (from SQA-BOOK-IMPLEMENTATION.md Part 3):",
+    "  1. CRP (Constant Replacement)    — caught the 22050Hz→16000Hz DATA BREACH class",
+    "  2. ROR (Relational Operator Replacement) — TerminalPhaseDetector compound conditions",
+    "  3. LCR (Logical Connector Replacement)   — FalsePositiveGuard AND/OR boundaries",
+    "  4. UOI (Unary Operator Insertion)        — AcousticProfileLibrary negation faults",
+    "Run schedule:",
+    "  Per-commit: mutate only changed files (use --mutate flag with tia-select output)",
+    "  Nightly:    full mutation run on all 7 safety-critical modules",
+    "  Pre-W-complete: mutation score must be ≥80% on TerminalPhaseDetector + FalsePositiveGuard"
+  ]
+}
