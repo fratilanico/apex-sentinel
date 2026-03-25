@@ -427,18 +427,19 @@ describe('SCENARIO: System degrades gracefully when acoustic node goes offline (
         const elrs = new ElrsRfFingerprint({ frequencyMhz: 915, burstThresholdDbm: -90 });
         const now = Date.now();
 
-        // 1. Traffic period
+        // 1. Traffic period — samples must be within LOSS_WINDOW_MS (200ms) of tick point
+        //    to avoid 100% packet-loss triggering rfSilent prematurely.
         for (let i = 0; i < 100; i++) {
-          elrs.processSample({ timestampMs: now - 2000 + i * 2, powerDbm: -70, frequencyMhz: 915 });
+          elrs.processSample({ timestampMs: now - 198 + i * 2, powerDbm: -70, frequencyMhz: 915 });
         }
-        elrs.tick(now - 1000);
+        elrs.tick(now);  // tick to present: last sample is now-2ms, silenceAge=2ms, loss≈0
         expect(elrs.rfSilent).toBe(false);
 
         // 2. Silence period (no packets for 2100ms)
         elrs.tick(now + 2100);
         expect(elrs.rfSilent).toBe(true);
 
-        // 3. Recovery: new packets arrive
+        // 3. Recovery: new packets arrive — system must exit silent state
         for (let i = 0; i < 100; i++) {
           elrs.processSample({ timestampMs: now + 2200 + i * 2, powerDbm: -70, frequencyMhz: 915 });
         }

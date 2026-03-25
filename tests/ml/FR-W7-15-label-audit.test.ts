@@ -6,7 +6,7 @@
 // = ±3.5% variance on the 97% recall gate — enough to flip acceptance.
 // These tests must pass before any external dataset is used for fine-tuning.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   LabelAuditor,
   UnknownLabelError,

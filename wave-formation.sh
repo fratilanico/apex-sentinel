@@ -237,7 +237,8 @@ cmd_mind_the_gap() {
   # ── Check 12: Detection data quality — CotRelay coverage RED flag ─────────
   echo -e "\n${CYAN}Check 12 [DAT]: Detection data quality — module coverage audit...${RESET}"
   local cov_out relay_stmt relay_branch
-  cov_out=$(cd "${REPO_ROOT}" && npx vitest run --coverage --reporter=verbose 2>&1 || true)
+  # Run with P2 project to get full coverage (relay tests are not in P0/P1)
+  cov_out=$(cd "${REPO_ROOT}" && npx vitest run --coverage --reporter=verbose --project "P2 Full Regression" 2>&1 || true)
   # Extract relay coverage — format: " cot-relay.ts  | XX.XX |"
   relay_stmt=$(echo "$cov_out" | grep "cot-relay" | grep -oE "\|\s+[0-9]+\.[0-9]+" | head -1 | grep -oE "[0-9]+\.[0-9]+" || echo "0")
   relay_branch=$(echo "$cov_out" | grep "cot-relay" | grep -oE "\|\s+[0-9]+\.[0-9]+" | sed -n '2p' | grep -oE "[0-9]+\.[0-9]+" || echo "0")
