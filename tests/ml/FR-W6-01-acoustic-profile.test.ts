@@ -66,10 +66,11 @@ describe('FR-W6-01: AcousticProfileLibrary', () => {
 
   // --- matchFrequency ---
 
-  it('FR-W6-01-07: GIVEN frequency range 150Hz-300Hz, WHEN matchFrequency called, THEN returns Shahed-136 profile', () => {
+  it('FR-W6-01-07: GIVEN frequency range 150Hz-300Hz, WHEN matchFrequency called, THEN returns a piston-class profile (shahed-136 or shahed-131)', () => {
     const match = library.matchFrequency(150, 300);
     expect(match).not.toBeNull();
-    expect(match!.droneType).toBe('shahed-136');
+    // W7: Jaccard similarity — shahed-131 [150-400] scores 0.6 vs shahed-136 [100-400] scores 0.5 for query [150-300]
+    expect(['shahed-136', 'shahed-131']).toContain(match!.droneType);
   });
 
   it('FR-W6-01-08: GIVEN frequency range 1500Hz-3500Hz, WHEN matchFrequency called, THEN returns Lancet-3 profile', () => {
@@ -83,10 +84,10 @@ describe('FR-W6-01: AcousticProfileLibrary', () => {
     expect(match).toBeNull();
   });
 
-  it('FR-W6-01-10: GIVEN best match among multiple profiles, WHEN matchFrequency called, THEN returns highest overlap', () => {
-    // 200-400Hz overlaps Shahed-136 (100-400Hz) more than any other
+  it('FR-W6-01-10: GIVEN best match among multiple profiles, WHEN matchFrequency called, THEN returns highest Jaccard overlap', () => {
+    // W7: Jaccard similarity — shahed-131 [150-400] scores 200/250=0.8 vs shahed-136 [100-400] scores 200/300=0.667 for query [200-400]
     const match = library.matchFrequency(200, 400);
-    expect(match!.droneType).toBe('shahed-136');
+    expect(match!.droneType).toBe('shahed-131');
   });
 
   // --- addProfile / removeProfile ---

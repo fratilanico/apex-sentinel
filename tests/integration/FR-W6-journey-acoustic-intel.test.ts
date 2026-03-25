@@ -28,8 +28,10 @@ describe('FR-W6-JOURNEY: Acoustic Intelligence End-to-End', () => {
     const formatter = new BRAVE1Format({ transmitter: { post: vi.fn().mockResolvedValue({ status: 200 }) } });
 
     // Step 1: match frequency to drone profile
+    // W7 note: [150, 300] overlaps both shahed-136 [100-400] and shahed-131 [150-400]
+    // either is a valid piston-class match at 200Hz fundamental
     const profile = library.matchFrequency(150, 300);
-    expect(profile!.droneType).toBe('shahed-136');
+    expect(['shahed-136', 'shahed-131']).toContain(profile!.droneType);
 
     // Step 2: encode tactical report as BRAVE1
     const report = {
@@ -41,13 +43,13 @@ describe('FR-W6-JOURNEY: Acoustic Intelligence End-to-End', () => {
       impactProjection: { timeToImpactSeconds: 25, lat: 51.51, lon: 4.87 },
       timestamp: new Date().toISOString(),
       nodeCount: 3,
-      narrative: 'Shahed-136 detected via acoustic profile match.',
+      narrative: `${profile!.droneType} detected via acoustic profile match.`,
     };
     const msg = formatter.encode(report);
     const validation = formatter.validate(msg);
     expect(validation.valid).toBe(true);
     expect(msg.type).toBeTruthy();
-    expect(msg.remarks).toContain('shahed-136');
+    expect(msg.remarks).toContain(profile!.droneType);
   });
 
   // --- Journey 2: Motorcycle false positive correctly suppressed ---

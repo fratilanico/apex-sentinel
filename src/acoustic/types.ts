@@ -18,9 +18,10 @@ export interface SpectralAnalysis {
   fftMagnitudes: Float32Array;
   peakFrequencyHz: number;
   energyBands: {
-    low: number;    // 500–800Hz
-    mid: number;    // 800–1400Hz
-    high: number;   // 1400–2000Hz
+    low: number;     // 500–800Hz
+    mid: number;     // 800–1400Hz
+    high: number;    // 1400–2000Hz
+    turbine: number; // 3000–8000Hz (Shahed-238 jet engine BPF)
   };
   rmsLevel: number;
   timestampUs: bigint;

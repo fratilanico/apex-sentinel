@@ -29,7 +29,7 @@ describe('FR-W6-04: DatasetPipeline', () => {
     const item = await pipeline.ingest('/data/shahed001.wav', 'shahed-136', 'field');
     expect(item.droneLabel).toBe('shahed-136');
     expect(item.source).toBe('field');
-    expect(item.sampleRate).toBe(22050); // resampled from 44100
+    expect(item.sampleRate).toBe(16000); // W7: TARGET_SAMPLE_RATE changed from 22050 to 16000 (INDIGO spec)
     expect(item.split).toBeNull(); // not yet split
     expect(item.augmented).toBe(false);
   });

@@ -1,9 +1,12 @@
-// APEX-SENTINEL — W6 Dataset Pipeline
-// FR-W6-04 | src/ml/dataset-pipeline.ts
+// APEX-SENTINEL — Dataset Pipeline (W7: 16kHz migration)
+// FR-W7-01 | src/ml/dataset-pipeline.ts
 //
-// Audio dataset ingestion from Telegram OSINT channels + field recordings.
-// Resamples to 22050Hz, augments, splits train/val/test.
+// Audio dataset ingestion, resampling, augmentation, split, and export.
+// W7 P0: migrate from 22050Hz to 16000Hz per INDIGO team spec.
 // Filesystem adapter injected for testability.
+
+/** W7 P0: canonical target sample rate — 16kHz (was 22050Hz in W6 — DATA BREACH) */
+export const TARGET_SAMPLE_RATE = 16000;
 
 export interface DatasetItem {
   id: string;
@@ -29,6 +32,7 @@ export interface DatasetStats {
   byLabel: Record<string, number>;
   bySource: Record<string, number>;
   bySplit: Record<string, number>;
+  sampleRate: number;
 }
 
 export interface SplitResult {
@@ -37,13 +41,30 @@ export interface SplitResult {
   test: number;
 }
 
+export interface SegmentResult {
+  itemId: string;
+  segmentIndex: number;
+  sampleCount: number;
+  sampleRate: number;
+}
+
+export interface ExportMetadata {
+  sampleRate: number;
+  totalItems: number;
+  exportedAt: string;
+}
+
+export interface ValidationResult {
+  isLegacy: boolean;
+  warnings: string[];
+  errors: string[];
+}
+
 export interface FsAdapter {
   readAudio: (path: string) => Promise<{ sampleRate: number; durationSeconds: number; channelCount: number }>;
   writeFile: (path: string, data: unknown) => Promise<void>;
   exists: (path: string) => boolean;
 }
-
-const TARGET_SAMPLE_RATE = 22050;
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -60,9 +81,11 @@ function hashString(str: string): number {
 export class DatasetPipeline {
   private readonly fs: FsAdapter;
   private readonly items = new Map<string, DatasetItem>();
+  private readonly targetSampleRate: number;
 
-  constructor(options: { fsAdapter: FsAdapter }) {
+  constructor(options: { fsAdapter: FsAdapter; sampleRate?: number }) {
     this.fs = options.fsAdapter;
+    this.targetSampleRate = options.sampleRate ?? TARGET_SAMPLE_RATE;
   }
 
   async ingest(filePath: string, droneLabel: string, source: 'telegram' | 'field'): Promise<DatasetItem> {
@@ -74,7 +97,8 @@ export class DatasetPipeline {
       filename: filePath,
       droneLabel,
       durationSeconds: audio.durationSeconds,
-      sampleRate: TARGET_SAMPLE_RATE, // always normalized
+      // Normalize to target sample rate regardless of input rate
+      sampleRate: this.targetSampleRate,
       augmented: false,
       split: null,
       ingestedAt: new Date().toISOString(),
@@ -122,7 +146,41 @@ export class DatasetPipeline {
     return { train: trainCount, val: valCount, test: testCount };
   }
 
-  async exportTFRecord(outputPath: string): Promise<void> {
+  /**
+   * Segment all items into fixed-length windows.
+   * Returns segment descriptors; actual audio slicing is handled by the fs adapter.
+   */
+  segment(options: { windowSeconds: number; hopSeconds: number }): SegmentResult[] {
+    const { windowSeconds, hopSeconds } = options;
+    const sampleCount = Math.floor(windowSeconds * this.targetSampleRate);
+    const results: SegmentResult[] = [];
+
+    for (const item of this.items.values()) {
+      const totalSamples = Math.floor(item.durationSeconds * this.targetSampleRate);
+      const hopSamples = Math.floor(hopSeconds * this.targetSampleRate);
+      let segIndex = 0;
+      for (let start = 0; start + sampleCount <= totalSamples; start += hopSamples) {
+        results.push({
+          itemId: item.id,
+          segmentIndex: segIndex++,
+          sampleCount,
+          sampleRate: this.targetSampleRate,
+        });
+      }
+      // If no full segment fits, still return one segment capped at duration
+      if (segIndex === 0) {
+        results.push({
+          itemId: item.id,
+          segmentIndex: 0,
+          sampleCount: Math.min(sampleCount, totalSamples),
+          sampleRate: this.targetSampleRate,
+        });
+      }
+    }
+    return results;
+  }
+
+  async exportTFRecord(outputPath: string): Promise<ExportMetadata> {
     const records = Array.from(this.items.values()).map(item => ({
       id: item.id,
       label: item.droneLabel,
@@ -130,7 +188,13 @@ export class DatasetPipeline {
       sampleRate: item.sampleRate,
       durationSeconds: item.durationSeconds,
     }));
-    await this.fs.writeFile(outputPath, records);
+    const metadata: ExportMetadata = {
+      sampleRate: this.targetSampleRate,
+      totalItems: records.length,
+      exportedAt: new Date().toISOString(),
+    };
+    await this.fs.writeFile(outputPath, { records, metadata });
+    return metadata;
   }
 
   getStats(): DatasetStats {
@@ -147,6 +211,43 @@ export class DatasetPipeline {
       }
     }
 
-    return { total: items.length, byLabel, bySource, bySplit };
+    return {
+      total: items.length,
+      byLabel,
+      bySource,
+      bySplit,
+      sampleRate: this.targetSampleRate,
+    };
+  }
+
+  /**
+   * Validate a single DatasetItem for legacy sampleRate and other integrity issues.
+   */
+  validateItem(item: DatasetItem): ValidationResult {
+    const warnings: string[] = [];
+    const errors: string[] = [];
+
+    if (item.sampleRate !== this.targetSampleRate) {
+      warnings.push(`sampleRate:${item.sampleRate} is legacy — expected ${this.targetSampleRate}`);
+    }
+
+    if (!item.droneLabel) {
+      errors.push('droneLabel is missing');
+    }
+
+    return {
+      isLegacy: item.sampleRate !== this.targetSampleRate,
+      warnings,
+      errors,
+    };
+  }
+
+  /**
+   * Compute the number of mel spectrogram frames for a given duration and hop length.
+   * frameCount = floor(durationSeconds * sampleRate / hopLength)
+   */
+  getMelFrameCount(options: { durationSeconds: number; hopLength: number }): number {
+    const totalSamples = Math.floor(options.durationSeconds * this.targetSampleRate);
+    return Math.floor(totalSamples / options.hopLength);
   }
 }
