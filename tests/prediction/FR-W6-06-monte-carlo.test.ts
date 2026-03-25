@@ -138,14 +138,15 @@ describe('FR-W6-06: MonteCarloPropagator', () => {
 
   it('FR-W6-06-13: GIVEN large velocity noise, WHEN propagate called, THEN stdLat > small noise case', () => {
     const state = makeEKFState();
-    const tight = propagator.propagate(state, { velocityNoiseSigma: 0.001 });
-    const loose = propagator.propagate(state, { velocityNoiseSigma: 0.1 });
-    const distTight = propagator.getImpactDistribution();
-    const tightStd = distTight!.stdLat;
-    const looseResult2 = new MonteCarloPropagator({ nSamples: 1000 });
-    looseResult2.propagate(state, { velocityNoiseSigma: 0.1 });
-    const looseDist = looseResult2.getImpactDistribution();
-    expect(looseDist!.stdLat).toBeGreaterThanOrEqual(tightStd);
+    const tightProp = new MonteCarloPropagator({ nSamples: 1000 });
+    const looseProp = new MonteCarloPropagator({ nSamples: 1000 });
+    // tight: very small velocity noise
+    tightProp.propagate(state, { velocityNoiseSigma: 5e-6 });
+    // loose: much larger velocity noise (100x)
+    looseProp.propagate(state, { velocityNoiseSigma: 5e-4 });
+    const tightDist = tightProp.getImpactDistribution();
+    const looseDist = looseProp.getImpactDistribution();
+    expect(looseDist!.stdLat).toBeGreaterThan(tightDist!.stdLat);
   });
 
   // --- confidence gate ---

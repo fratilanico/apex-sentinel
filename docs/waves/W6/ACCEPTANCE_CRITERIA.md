@@ -1,439 +1,709 @@
-# APEX-SENTINEL — ACCEPTANCE_CRITERIA.md
-## Wave 6: Military Acoustic Intelligence + YAMNet Fine-tuning + Edge Deployment
-### Wave 6 | Project: APEX-SENTINEL | Version: 6.0.0
-### Date: 2026-03-25 | Status: APPROVED
+# APEX-SENTINEL W6 — Acceptance Criteria
+
+> Wave: W6 — Military Acoustic Intelligence + YAMNet Fine-tuning + Edge Deployment
+> Last updated: 2026-03-25
+> Format: BDD (Given / When / Then)
+> Total ACs: 44 | Per FR: 3–5
 
 ---
 
-## 1. ACCEPTANCE FRAMEWORK
+## FR-W6-01: AcousticProfileLibrary
 
-Each acceptance criterion is written in Given/When/Then format. All criteria must pass before W6 is marked `wave:complete`. Verification method noted per criterion: automated test (AT), manual test (MT), benchmark (BM), or review (RV).
-
----
-
-## 2. FR-W6-01: YAMNet Fine-Tuning Pipeline
-
-**AC-01-01** | Verification: AT
-```
-Given: An AcousticClassifier instance with yamnet-shahed-v1.tflite loaded
-When: classify(Float32Array(44100), 0) is called
-Then: Returns ClassificationResult with label, confidence, probabilities (4 keys), processingTimeMs, modelVersion, windowStartMs, windowEndMs
-And: probabilities values sum to 1.0 ±0.001
-And: confidence === max(probabilities values) ±0.0001
-```
-
-**AC-01-02** | Verification: BM
-```
-Given: Held-out test set (15% of dataset, 300+ labeled clips)
-When: YAMNet fine-tuned model runs inference on all test clips
-Then: Shahed class precision ≥ 90%
-And:  Shahed class recall ≥ 80%
-And:  AUC-ROC (shahed vs rest) ≥ 0.95
-And:  Motorcycle clips classified as shahed < 10% of the time (confusion matrix check)
-```
-
-**AC-01-03** | Verification: BM
-```
-Given: yamnet-shahed-v1.tflite model file
-When: File size checked
-Then: File size ≤ 50 MB
-```
-
-**AC-01-04** | Verification: AT
-```
-Given: AcousticClassifier with model loaded
-When: classify() called 20 times consecutively
-Then: Node.js heap growth ≤ 20 MB (no tensor leak)
-And:  Each call completes in < 500ms
-```
-
-**AC-01-05** | Verification: AT
-```
-Given: AcousticClassifier not yet loaded
-When: classify() called before load()
-Then: Throws ModelNotLoadedError
-```
+**Summary:** Manages the drone acoustic taxonomy database. Provides frequency-based profile lookup and full profile retrieval for 10 target classes (8 drone classes + 2 false-positive classes).
 
 ---
 
-## 3. FR-W6-02: Lancet Classifier
+**AC-01 — Shahed-136 frequency match**
 
-**AC-02-01** | Verification: BM
 ```
-Given: Held-out Lancet test set (50+ labeled clips)
-When: Fine-tuned model runs inference on all Lancet test clips
-Then: Lancet precision ≥ 70%
-And:  Lancet recall ≥ 60%
-```
-
-**AC-02-02** | Verification: AT
-```
-Given: Synthetic 1400 Hz sine wave (2s at 22050 Hz)
-When: classify() called on this buffer
-Then: result.label === 'lancet'
-And:  result.probabilities.lancet > result.probabilities.shahed
+GIVEN a frequency range of 150Hz to 300Hz
+  AND the AcousticProfileLibrary is initialized with default profiles
+WHEN matchFrequency({ fMin: 150, fMax: 300 }) is called
+THEN the result is not null
+  AND result.label === 'shahed-136'
+  AND result.confidence > 0.8
 ```
 
-**AC-02-03** | Verification: AT
+**AC-02 — Lancet-3 frequency match**
+
 ```
-Given: Synthetic Shahed harmonic buffer [120, 240, 360 Hz]
-When: classify() called
-Then: result.label === 'shahed'
-And:  result.probabilities.shahed > result.probabilities.lancet
+GIVEN a frequency range of 1500Hz to 3500Hz
+  AND the AcousticProfileLibrary is initialized with default profiles
+WHEN matchFrequency({ fMin: 1500, fMax: 3500 }) is called
+THEN the result is not null
+  AND result.label === 'lancet-3'
+  AND result.confidence > 0.7
 ```
 
-**AC-02-04** | Verification: RV
+**AC-03 — Full profile retrieval**
+
 ```
-Given: Model training configuration
-When: Mel spectrogram parameters reviewed for Lancet path
-Then: fmin=500Hz, fmax=8000Hz, n_mels=64 are applied for Lancet-band analysis
-And:  These differ from Shahed path: fmin=80Hz, fmax=8000Hz, n_mels=128
+GIVEN the drone type identifier "shahed-136"
+WHEN getProfile("shahed-136") is called
+THEN the result is not null
+  AND result.rpmRange[0] === 7000
+  AND result.rpmRange[1] === 9000
+  AND result.freqMin === 100
+  AND result.freqMax === 400
+  AND result.label === 'shahed-136'
+  AND result.id is a non-empty string
+```
+
+**AC-04 — Unknown drone type error**
+
+```
+GIVEN a drone type identifier "phantom-x" that does not exist in the library
+WHEN getProfile("phantom-x") is called
+THEN a DroneProfileNotFoundError is thrown
+  AND the error message includes the string "phantom-x"
+```
+
+**AC-05 — Full library enumeration**
+
+```
+GIVEN the AcousticProfileLibrary is initialized with default profiles
+WHEN getAllProfiles() is called
+THEN the result is an array
+  AND result.length >= 4
+  AND every item in result has a unique id field
+  AND at least one item has label === 'motorcycle-50cc' (false positive class present)
 ```
 
 ---
 
-## 4. FR-W6-03: False Positive Classifier
+## FR-W6-02: YAMNetFineTuner
 
-**AC-03-01** | Verification: AT
-```
-Given: FalsePositiveGuard with default threshold 0.3
-When: ClassificationResult with P(fp)=0.45, P(shahed)=0.50 is evaluated
-Then: result.suppressed === true
-And:  result.reason contains 'P(fp)=0.45'
-```
+**Summary:** Manages the transfer learning pipeline. Loads the YAMNet-512 base model, fine-tunes the top 10% of layers with a 10-class drone taxonomy head, and exports to ONNX opset 17.
 
-**AC-03-02** | Verification: AT
+---
+
+**AC-06 — Loss decreases across epochs**
+
 ```
-Given: FalsePositiveGuard with default threshold 0.3
-When: ClassificationResult with P(fp)=0.20, P(shahed)=0.75 is evaluated
-Then: result.suppressed === false
+GIVEN a mock dataset of 1000 audio clips (10 classes, balanced)
+  AND the YAMNetFineTuner is configured with batchSize=32
+WHEN trainEpoch() is called twice (epoch 1, then epoch 2)
+THEN the loss reported in epoch 2 is less than the loss reported in epoch 1
 ```
 
-**AC-03-03** | Verification: AT
+**AC-07 — ONNX export produces a file**
+
 ```
-Given: FalsePositiveGuard evaluating detection with dopplerRate=25.0 Hz/s
-When: evaluate() called (regardless of probability values)
-Then: result.suppressed === true
-And:  result.reason contains 'doppler'
+GIVEN a YAMNetFineTuner that has completed at least 1 training epoch
+  AND an output path "/tmp/dronenet-test.onnx"
+WHEN exportONNX({ outputPath: "/tmp/dronenet-test.onnx" }) is called
+THEN a file is written to "/tmp/dronenet-test.onnx"
+  AND the file is non-empty (size > 0 bytes)
+  AND no error is thrown
 ```
 
-**AC-03-04** | Verification: BM + AT
+**AC-08 — Validation accuracy meets threshold**
+
 ```
-Given: 200 motorcycle 50cc audio test clips
-When: Full pipeline (classifier + FPGuard) processes each clip
-Then: ≤ 10 clips (≤ 5%) result in unsuppressed shahed/lancet detection
+GIVEN a trained YAMNetFineTuner with a mock validation set of 100 clips
+WHEN evaluate() is called
+THEN result.accuracy >= 0.90
+  AND result.false_positive_rate <= 0.05
+  AND result has shape { accuracy: number, false_positive_rate: number, per_class_accuracy: Record<string, number> }
 ```
 
-**AC-03-05** | Verification: AT
+**AC-09 — Mel spectrogram shape**
+
 ```
-Given: FalsePositiveGuard
-When: setFpThreshold(-0.1) or setFpThreshold(1.1) called
-Then: Throws RangeError
+GIVEN a 2-second audio window sampled at 22050Hz (44100 samples)
+  AND MelSpectrogramConfig: { nMels: 128, nFFT: 2048, hopLength: 512, fMin: 80, fMax: 8000 }
+WHEN computeMelSpectrogram() is called with this audio frame
+THEN the output shape is [128, 87]
+  AND output[i][j] is a finite number for all i, j
+  AND output is normalized (per-frame mean ≈ 0, std ≈ 1)
 ```
 
-**AC-03-06** | Verification: AT
+**AC-10 — Training metrics shape**
+
 ```
-Given: Suppression event occurs
-When: Suppression decision is logged
-Then: fp_suppression_log entry created with: node_id, detected_at, prob_fp, threshold_used, reason
+GIVEN a YAMNetFineTuner that has completed 5 training epochs
+WHEN getMetrics() is called
+THEN the result is an array of length 5
+  AND each item has shape { epoch: number, loss: number, val_accuracy: number, false_positive_rate: number }
+  AND item[0].epoch === 1
+  AND item[4].epoch === 5
 ```
 
 ---
 
-## 5. FR-W6-04: Dataset Ingestion Pipeline
+## FR-W6-03: FalsePositiveGuard
 
-**AC-04-01** | Verification: AT + MT
-```
-Given: yt-dlp installed, search query "Shahed drone sound"
-When: dataset-pipeline.ts run with --source youtube --query "Shahed drone sound" --limit 5
-Then: ≥ 5 audio files downloaded as WAV at 22050 Hz mono
-And:  acoustic_training_data records inserted in Supabase
-And:  auto_label set from keyword matching
-```
+**Summary:** Post-processes YAMNet detections to eliminate false positives. Applies confidence threshold, Doppler analysis, temporal pattern recognition, and RF cross-correlation to discriminate between real drones and civilian false positives (motorcycles, generators, trucks).
 
-**AC-04-02** | Verification: AT
-```
-Given: 90-second WAV file at 22050 Hz
-When: audio-segmenter.ts processes it with window=2s, hop=0.5s
-Then: Produces floor((90 - 2) / 0.5) + 1 = 177 segments
-And:  Each segment is exactly 44100 samples
-And:  Each segment has startMs and endMs metadata
-```
+---
 
-**AC-04-03** | Verification: AT
+**AC-11 — Temporal-linear pattern flags motorcycle**
+
 ```
-Given: WAV filename containing "shahed"
-When: auto-labeler processes source URL "youtube.com/watch?v=abc [шахед звук]"
-Then: auto_label = 'shahed'
-And:  review_queue entry created with priority = 5 (medium)
+GIVEN a detection with:
+  - acousticConfidence: 0.92 (above threshold)
+  - rfPresent: false
+  - temporalPattern: 'linear'
+  - speedEstimate: 65 km/h (above 60 km/h vehicle threshold)
+WHEN assess(detection) is called
+THEN result.isFalsePositive === true
+  AND result.reason === "temporal-linear"
 ```
 
-**AC-04-04** | Verification: AT
+**AC-12 — RF + circular pattern confirms drone**
+
 ```
-Given: Silent audio segment (RMS < threshold)
-When: segmenter processes it
-Then: Segment is skipped (not saved to training data)
+GIVEN a detection with:
+  - acousticConfidence: 0.88
+  - rfPresent: true
+  - rfFrequencyHz: 900_000_000
+  - temporalPattern: 'circular'
+  - speedEstimate: 35 km/h
+WHEN assess(detection) is called
+THEN result.isFalsePositive === false
+  AND result.reason is null
+```
+
+**AC-13 — High-speed linear track is a vehicle**
+
+```
+GIVEN a 10-second temporal window containing 3 acoustic detections
+  AND all 3 detections are at consistent speed > 60 km/h
+  AND all 3 detections follow a linear trajectory (no bearing change > 15°)
+WHEN assess() is called on the third detection
+THEN result.isFalsePositive === true
+  AND result.reason === "vehicle-speed-pattern"
+```
+
+**AC-14 — Low confidence auto-flag**
+
+```
+GIVEN a detection with:
+  - acousticConfidence: 0.72 (below 0.85 threshold)
+  - rfPresent: true
+  - temporalPattern: 'circular'
+WHEN assess(detection) is called
+THEN result.isFalsePositive === true
+  AND result.reason === "low-confidence"
+  AND the RF and temporal pattern are NOT evaluated (confidence check is first gate)
+```
+
+**AC-15 — Doppler shift indicates vehicle approach speed**
+
+```
+GIVEN a detection with:
+  - acousticConfidence: 0.90
+  - dopplerShiftKHz: 2.5 (corresponding to ~80 km/h approach speed)
+  - temporalPattern: 'linear'
+WHEN assess(detection) is called
+THEN result.isFalsePositive === true
+  AND result.reason includes "doppler"
+  AND result.estimatedSpeedKmh > 60
 ```
 
 ---
 
-## 6. FR-W6-05: Multi-Node Fusion
+## FR-W6-04: DatasetPipeline
 
-**AC-05-01** | Verification: AT
-```
-Given: Two nodes (A at 48.9200N 37.7800E, B at 48.9300N 37.7900E)
-When: Both detect same Shahed with TDOA Δt = 0.85s
-Then: Fused position returned within 300m of true position (using Chan-Taylor)
-And:  FusedDetectionEvent.multiNode === true
-And:  FusedDetectionEvent.sourceNodeIds.length === 2
-```
+**Summary:** Manages acquisition and preparation of training data. Ingests audio from OSINT sources and field recordings, normalizes to 22050Hz, applies augmentation, and exports TFRecord/ONNX-compatible datasets.
 
-**AC-05-02** | Verification: AT
-```
-Given: GDOP = 6.2 (poor geometry)
-When: MultiNodeFusion.fuse() called
-Then: TDoA contribution weight = 0 (gated out)
-And:  fusedPosition uses acoustic confidence weighting only
-```
+---
 
-**AC-05-03** | Verification: AT
+**AC-16 — Ingest resamples and normalizes**
+
 ```
-Given: Only one node detects target
-When: MultiNodeFusion.fuse() called with single detection
-Then: FusedDetectionEvent.multiNode === false
-And:  fusedPosition = single node position
-And:  No error thrown
+GIVEN an audio file at 44100Hz sample rate
+  AND the file contains a 2-second tone at 200Hz
+WHEN ingest({ filePath, label: 'shahed-136', source: 'field_recording' }) is called
+THEN the resulting clip is stored at 22050Hz (resampled)
+  AND peak amplitude is normalized to [-1.0, 1.0]
+  AND the dataset_items table is updated with { filename, label, sample_rate: 22050, duration_ms: 2000 }
+  AND the raw audio bytes are NOT stored in the database
 ```
 
-**AC-05-04** | Verification: AT
+**AC-17 — Split ratio is exact**
+
 ```
-Given: Two detections with timestamps 10s apart (outside ±5s window)
-When: MultiNodeFusion correlation attempted
-Then: Detections NOT correlated (treated as separate events)
+GIVEN a dataset with exactly 500 items
+WHEN split({ trainRatio: 0.8, valRatio: 0.1, testRatio: 0.1 }) is called
+THEN result.train.length === 400
+  AND result.val.length === 50
+  AND result.test.length === 50
+  AND result.train.length + result.val.length + result.test.length === 500
 ```
 
-**AC-05-05** | Verification: AT
+**AC-18 — Augmentation modifies audio**
+
 ```
-Given: Node B detection has acoustic confidence 0.40 (below 0.50 gate)
-When: MultiNodeFusion.fuse() called
-Then: Node B contribution excluded from fusion
-And:  Result is single-node (Node A only)
+GIVEN an audio clip of 2 seconds at 22050Hz
+WHEN augment(clip, { speed: 1.1, noise: 0.05 }) is called
+THEN the returned clip has different length from input (speed perturbation applied)
+  AND the returned clip is not identical to the input (noise applied)
+  AND the returned clip is normalized to [-1.0, 1.0]
+```
+
+**AC-19 — TFRecord export**
+
+```
+GIVEN a dataset with 50 ingested clips
+  AND an output path "/tmp/dataset.tfrecord"
+WHEN exportTFRecord({ outputPath: "/tmp/dataset.tfrecord" }) is called
+THEN a file is written at the output path
+  AND the file is non-empty
+  AND no error is thrown
+```
+
+**AC-20 — Stats on empty dataset**
+
+```
+GIVEN a DatasetPipeline with no ingested items (freshly initialized)
+WHEN getStats() is called
+THEN result.total === 0
+  AND result.byLabel is an empty object {}
+  AND result.bySource is an empty object {}
 ```
 
 ---
 
-## 7. FR-W6-06: Monte Carlo Risk Heatmap
+## FR-W6-05: MultiNodeFusion
 
-**AC-06-01** | Verification: AT
-```
-Given: EKF state with position (48.92N, 37.78E, 125m alt) and velocity towards SE
-When: MonteCarlo.simulate() called with N=1000
-Then: Returns exactly 1000 impact points
-And:  All impact points have lat in [20, 70] and lon in [20, 60] (Eastern Europe bounds check)
-```
+**Summary:** Aggregates acoustic detections from multiple APEX-SENTINEL nodes. Uses inverse-distance weighting and majority voting to produce a consensus detection with higher confidence than any individual node.
 
-**AC-06-02** | Verification: BM
-```
-Given: Typical EKF covariance (lat_var=1.2e-8, lon_var=1.1e-8)
-When: MonteCarlo.simulate() + RiskHeatmap.compute() called
-Then: Entire computation completes in < 100ms on benchmark machine (Node.js, x86_64)
-```
+---
 
-**AC-06-03** | Verification: AT
+**AC-21 — Consensus confidence calculation**
+
 ```
-Given: 1000 impact points concentrated near (48.91N, 37.795E)
-When: RiskHeatmap.compute() called
-Then: Probabilities sum to 1.0 ±0.02 (rounding/pruning tolerance)
-And:  No cell has probability < 0.001
-And:  Peak cell within 200m of concentration center
+GIVEN 3 nodes report the same trackId with:
+  - Node A: confidence=0.9, distance=500m
+  - Node B: confidence=0.8, distance=1200m
+  - Node C: confidence=0.7, distance=800m
+WHEN fuse({ trackId, reports: [A, B, C] }) is called
+THEN result.fusedConfidence > 0.85
+  AND result.droneClass is the class reported by majority
+  AND result.contributingNodes contains all three node IDs
 ```
 
-**AC-06-04** | Verification: AT
+**AC-22 — Inverse-distance weighting**
+
 ```
-Given: Heatmap computed for track "track-abc"
-When: NATS publish called
-Then: Event on subject "sentinel.risk.track-abc" with schema "sentinel.risk.v1"
-And:  Event contains trackId, cells, peakImpactLat, peakImpactLon, computeTimeMs
+GIVEN 2 nodes report the same track:
+  - Node A: confidence=0.8, distance=300m (closer)
+  - Node B: confidence=0.8, distance=900m (farther)
+WHEN fuse() is called
+THEN Node A receives weight >= 3x weight of Node B (inverse distance ratio: 900/300 = 3)
+  AND result.fusedConfidence is closer to Node A's confidence than Node B's
+```
+
+**AC-23 — Majority vote overrides false positive**
+
+```
+GIVEN 3 nodes report on the same track:
+  - Node A: droneClass='shahed-136', isFalsePositive=false
+  - Node B: droneClass='shahed-136', isFalsePositive=false
+  - Node C: droneClass='motorcycle-50cc', isFalsePositive=true
+WHEN fuse() is called
+THEN result.isFalsePositive === false
+  AND result.droneClass === 'shahed-136'
+```
+
+**AC-24 — Stale report removal**
+
+```
+GIVEN a node report was added with timestamp T
+  AND maxAgeMs is set to 5000 (5 seconds)
+  AND clearStale() is called at time T + 6000ms (6 seconds later)
+THEN the report is no longer present in the fusion state
+  AND getConsensus() returns null for that track
+```
+
+**AC-25 — No reports returns null**
+
+```
+GIVEN a MultiNodeFusion instance with no reports for track "track-xyz"
+WHEN getConsensus("track-xyz") is called
+THEN the result is null
 ```
 
 ---
 
-## 8. FR-W6-07: Edge Deployment
+## FR-W6-06: MonteCarloPropagator
 
-**AC-07-01** | Verification: BM (simulated RPi constraints via --max-old-space-size=500)
-```
-Given: edge-runner.ts started with Node.js --max-old-space-size=500
-When: 60 seconds of inference run (120 windows at 0.5s hop)
-Then: Process does not crash (OOMKilled)
-And:  RSS memory stays below 500 MB
-```
+**Summary:** Generates a probabilistic impact distribution by propagating EKF state uncertainty through N Monte Carlo samples. Replaces the deterministic impact estimate from W5 with a 95th-percentile confidence ellipse.
 
-**AC-07-02** | Verification: AT
+---
+
+**AC-26 — Sample count**
+
 ```
-Given: NATS connection fails on startup
-When: edge-runner.ts attempts to connect
-Then: Local SQLite buffer initialized
-And:  Detections written to detection_buffer table
-And:  No crash or unhandled rejection
+GIVEN an EKF state with position uncertainty of +/-50m (covariance diagonal ~2500)
+  AND the track is descending (vAlt < 0)
+WHEN propagate(1000) is called
+THEN the result contains exactly 1000 impact samples
+  AND each sample has { lat: number, lon: number, alt: 0 }
 ```
 
-**AC-07-03** | Verification: AT
+**AC-27 — 95th percentile ellipse**
+
 ```
-Given: 25 detections buffered in SQLite while NATS offline
-When: NATS reconnects
-Then: All 25 detections published to NATS within 10s
-And:  SQLite records marked synced=true
+GIVEN 1000 Monte Carlo samples produced by propagate(1000)
+WHEN get95thPercentileBounds() is called
+THEN the returned ellipse contains at least 950 of the 1000 samples
+  AND result has shape { centerLat, centerLon, semiMajorMeters, semiMinorMeters, rotationDeg }
 ```
 
-**AC-07-04** | Verification: AT
+**AC-28 — Ascending track has no impact**
+
 ```
-Given: edge-runner.ts running
-When: SIGTERM sent
-Then: Audio capture stops
-And:  NATS connection closed cleanly
-And:  Process exits with code 0 within 5s
+GIVEN an EKF state where vAlt > 0 (drone is ascending)
+WHEN propagate(1000) is called
+THEN result.samples is an empty array (length === 0)
+  AND result.confidence === 0
+  AND result.reason === "ascending-track"
 ```
 
-**AC-07-05** | Verification: AT
+**AC-29 — High-confidence EKF produces tight ellipse**
+
 ```
-Given: edge-runner running for 30s
-When: NODE_HEALTH interval fires
-Then: NATS message published to sentinel.node.health.{nodeId}
-And:  Contains: nodeId, uptimeS, detectionCount, natsConnected, memoryMB, modelVersion
+GIVEN an EKF state with covariance trace < 1 (high confidence, sub-meter uncertainty)
+WHEN propagate(1000) is called
+  AND get95thPercentileBounds() is called on the result
+THEN result.semiMajorMeters < 200
+```
+
+**AC-30 — Low-confidence EKF produces wide ellipse**
+
+```
+GIVEN an EKF state with covariance trace > 100 (low confidence, high uncertainty)
+WHEN propagate(1000) is called
+  AND get95thPercentileBounds() is called on the result
+THEN result.semiMajorMeters > 1000
 ```
 
 ---
 
-## 9. FR-W6-08: Full Integration Layer
+## FR-W6-07: EdgeDeployer
 
-**AC-08-01** | Verification: AT
-```
-Given: SentinelPipeline with all modules mocked
-When: start() called
-Then: All modules started in correct order: NATS → Supabase → TrackManager → EKF → Classifier → AudioCapture
-And:  isRunning() === true within 10s
-```
+**Summary:** Quantizes ONNX models for edge hardware targets and validates deployment suitability. Produces INT8 models for Raspberry Pi 4 and FP16 models for Jetson Nano, with per-device configuration manifests.
 
-**AC-08-02** | Verification: AT
+---
+
+**AC-31 — INT8 quantization reduces model size**
+
 ```
-Given: AcousticClassifier module throws on classify()
-When: SentinelPipeline processes detection
-Then: Error is caught and logged
-And:  pipeline.isRunning() still === true (no crash)
-And:  pipeline.getMetrics().classifierErrors incremented
+GIVEN an ONNX FP32 model with file size S bytes
+WHEN quantize({ model, targetDevice: "rpi4" }) is called
+THEN the returned INT8 model has file size < S x 0.5
+  AND the INT8 model is a valid ONNX file (non-empty, readable by onnxruntime-node mock)
 ```
 
-**AC-08-03** | Verification: AT
+**AC-32 — Jetson Nano manifest has CUDA config**
+
 ```
-Given: SentinelPipeline running, then stop() called
-When: stop() completes
-Then: All modules stopped in reverse order
-And:  No pending timers remain (process can exit cleanly)
+GIVEN a target device "jetson-nano"
+  AND a valid ONNX model path
+WHEN createManifest({ targetDevice: "jetson-nano", modelPath }) is called
+THEN result is a valid JSON object
+  AND result.device === "jetson-nano"
+  AND result.precision === "fp16"
+  AND result.cudaConfig is defined (not undefined)
+  AND result.latencyTargetMs === 50
+```
+
+**AC-33 — RPi4 inference latency validation**
+
+```
+GIVEN a quantized INT8 ONNX model deployed on a simulated RPi4 runtime
+WHEN validateDeployment({ device: "rpi4", modelPath, testAudioPath }) is called
+  AND mock inference returns in 150ms
+THEN validation passes (no error thrown)
+  AND result.latencyP95Ms < 200
+```
+
+**AC-34 — Corrupt model throws diagnostic error**
+
+```
+GIVEN a zero-byte (corrupt) ONNX file at modelPath
+WHEN validateDeployment({ device: "rpi4", modelPath }) is called
+THEN an EdgeDeploymentError is thrown
+  AND error.device === "rpi4"
+  AND error.modelPath === modelPath
+  AND error.diagnosticInfo is a non-empty string
 ```
 
 ---
 
-## 10. FR-W6-09: ATAK CoT Output
+## FR-W6-08: SentinelPipeline
 
-**AC-09-01** | Verification: AT
-```
-Given: Track with drone_type='shahed', confirmed=true (≥3 detections)
-When: CotGenerator.generate() called
-Then: cotType === 'a-h-A-C-F'
-And:  CoT XML includes <remarks> with confidence, classifier version, node count
-And:  stale attribute = detectedAt + 60s
-```
+**Summary:** End-to-end orchestrator connecting all W6 modules. Accepts raw audio frames and passes them through the full detection chain: VAD -> FFT -> YAMNet -> FalsePositiveGuard -> TrackManager -> EKF -> NATS publish.
 
-**AC-09-02** | Verification: AT
-```
-Given: Track with drone_type='lancet', confirmed=true
-When: CotGenerator.generate() called
-Then: cotType === 'a-h-A-M-F-Q'
-```
+---
 
-**AC-09-03** | Verification: AT
+**AC-35 — Full pipeline processing chain**
+
 ```
-Given: Track with 1 detection (unconfirmed)
-When: CotGenerator.generate() called
-Then: cotType === 'a-u-A'
+GIVEN the SentinelPipeline has been started (start() called)
+  AND all 6 modules are initialized (VAD, FFT, YAMNet, FPGuard, TrackManager, EKF)
+  AND NATS is mocked
+WHEN processAudioFrame(frame22050Samples) is called
+THEN the frame passes through VAD check
+  AND FFT features are extracted
+  AND YAMNet classification is called
+  AND FalsePositiveGuard.assess() is called
+  AND TrackManager.update() is called
+  AND EKF.predict() is called
+  AND NatsClient.publish() is called once with subject 'acoustic.detections'
 ```
 
-**AC-09-04** | Verification: AT
+**AC-36 — Status after start**
+
 ```
-Given: 3 shahed detections injected within 30s window
-When: SentinelPipeline processes them
-Then: Track confirmed_at set
-And:  CotGenerator fired within 1s of confirmation
-And:  NATS event on sentinel.cot.{trackId} published
+GIVEN the SentinelPipeline has been started
+WHEN getStatus() is called
+THEN result.running === true
+  AND result.activeModules === 6
+  AND result.dropsPerSecond === 0
+  AND result.processedFrames >= 0
+```
+
+**AC-37 — NATS disconnect does not crash pipeline**
+
+```
+GIVEN the SentinelPipeline is running
+  AND NatsClient.publish() throws a connection error
+WHEN processAudioFrame(frame) is called
+THEN no error is thrown by processAudioFrame()
+  AND result is buffered internally (result.buffered === true)
+  AND a 'nats-disconnected' event is emitted by the pipeline
+```
+
+**AC-38 — Pipeline not running throws error**
+
+```
+GIVEN the SentinelPipeline has NOT been started (start() never called)
+WHEN processAudioFrame(frame) is called
+THEN a PipelineNotRunningError is thrown
+  AND error.message includes "start()"
 ```
 
 ---
 
-## 11. FR-W6-10: BRAVE1 Data Format
+## FR-W6-09: CursorOfTruth
 
-**AC-10-01** | Verification: AT
+**Summary:** Formats EKF state and impact estimates into human-readable tactical situation reports. Uses Claude API (claude-sonnet-4-6) for Chain-of-Thought formatting. Falls back to deterministic template when Claude is unavailable.
+
+---
+
+**AC-39 — Tactical report format with Claude available**
+
 ```
-Given: CSV file with columns: lat,lon,alt,timestamp,drone_type,confidence,audio_file_ref
-When: brave1-importer.ts processes it
-Then: All valid rows inserted to brave1_detections table
-And:  Import summary returned: recordsProcessed, recordsInserted, duplicatesSkipped, errors
+GIVEN an EKF state at lat=47.1234N, lon=26.3456E, alt=450m, hdg=280, speed=55m/s
+  AND an impact estimate at lat=47.0990N, lon=26.2100E
+  AND Claude API is available (mock returns a valid 3-line response)
+WHEN format({ ekfState, impactEstimate }) is called
+THEN the result is a string with exactly 3 lines (split by newline)
+  AND line 1 starts with "THREAT:"
+  AND line 2 starts with "POSIT:"
+  AND line 3 starts with "ACTION:"
+  AND the coordinates in the output are coarsened to +/-50m (not raw EKF precision)
 ```
 
-**AC-10-02** | Verification: AT
+**AC-40 — No impact projected message**
+
 ```
-Given: CSV with duplicate row (same lat/lon/timestamp within tolerance)
-When: brave1-importer.ts processes it
-Then: Duplicate row skipped
-And:  duplicatesSkipped count incremented
-And:  No database error thrown
+GIVEN an EKF state with vAlt > 0 (ascending track)
+  AND impactEstimate is null
+WHEN format({ ekfState, impactEstimate: null }) is called
+THEN the report contains the string "NO IMPACT PROJECTED"
+  AND the report still includes the THREAT line with drone class and confidence
 ```
 
-**AC-10-03** | Verification: AT
+**AC-41 — Template fallback when Claude unavailable**
+
 ```
-Given: Row with invalid timestamp format "2026/03/24"
-When: brave1-importer.ts processes it
-Then: Row logged to errorDetails
-And:  errors count incremented
-And:  Other valid rows still processed
+GIVEN Claude API throws a NetworkError or returns after 8000ms timeout
+WHEN format({ ekfState, impactEstimate }) is called
+THEN no error is thrown
+  AND the result is a non-empty string
+  AND the result contains all three sections (THREAT, POSIT, ACTION)
+  AND the result does NOT contain any error message about Claude
 ```
 
 ---
 
-## 12. NON-FUNCTIONAL ACCEPTANCE
+## FR-W6-10: BRAVE1Format
 
-**NFR-01 — Edge Performance** | Verification: BM
-```
-Given: RPi 4 4GB running Node.js 20 with --max-old-space-size=500
-When: Continuous inference for 60s (120 windows)
-Then: Mean inference time per window < 200ms
-And:  P99 inference time < 350ms
-And:  No frames dropped (buffer overflow)
-```
+**Summary:** Encodes APEX-SENTINEL detections into BRAVE1 JSON format (NATO CoT-compatible). Supports encode, decode, and validation operations. Used as the wire format for alerting systems.
 
-**NFR-02 — Pipeline Latency** | Verification: MT (hackathon demo)
-```
-Given: RPi4 edge node, Fortress pipeline, ATAK tablet
-When: Audio with Shahed harmonic content played near RPi4 microphone
-Then: ATAK CoT marker appears within 5s of audio start
-```
+---
 
-**NFR-03 — Test Coverage** | Verification: AT (CI gate)
-```
-Given: npx vitest run --coverage executed after W6 implementation
-When: Coverage report generated
-Then: branches ≥ 80%, functions ≥ 80%, lines ≥ 80%, statements ≥ 80%
-And:  Total tests ≥ 614 (484 existing + 130 new)
-And:  All tests GREEN (0 failures)
-```
+**AC-42 — Encode produces required fields**
 
-**NFR-04 — mind-the-gap** | Verification: AT
 ```
-When: mind-the-gap skill run on W6 documents
-Then: 14/14 PASS
+GIVEN a CoT message with:
+  - nodeId: "sentinel-node-abc123"
+  - trackId: "track-001"
+  - droneClass: "shahed-136"
+  - lat: 47.1234, lon: 26.3456
+  - altHae: 450
+  - circularError: 75
+  - timestamp: "2026-03-25T14:30:00Z"
+  - remarks: "THREAT: SHAHED-136 CONFIDENCE 92%"
+WHEN encode(cotMessage) is called
+THEN the result is a valid JSON object
+  AND result.type is a non-empty string
+  AND result.uid === "sentinel-sentinel-node-abc123-track-001"
+  AND result.time === "2026-03-25T14:30:00Z"
+  AND result.lat === 47.1234
+  AND result.lon === 26.3456
+  AND result.ce === 75
+  AND result.hae === 450
+  AND result.remarks === "THREAT: SHAHED-136 CONFIDENCE 92%"
 ```
 
-**NFR-05 — TypeScript** | Verification: AT
+**AC-43 — Decode round-trip**
+
 ```
-When: npx tsc --noEmit run on full codebase with W6 additions
-Then: 0 type errors
+GIVEN a BRAVE1 JSON message produced by encode()
+WHEN decode(brave1Message) is called
+THEN the result is a CoT-equivalent structure
+  AND result.lat is within 0.0001 degrees of the original lat
+  AND result.lon is within 0.0001 degrees of the original lon
+  AND result.remarks === the original remarks string
+  AND no error is thrown
 ```
+
+**AC-44 — Validation catches bad payload**
+
+```
+GIVEN a BRAVE1 payload with:
+  - missing "uid" field
+  - lat value of 200 (outside valid range [-90, 90])
+WHEN validate(invalidPayload) is called
+THEN result.valid === false
+  AND result.errors is an array with at least 2 items
+  AND one error contains "uid"
+  AND one error contains "lat"
+  AND each error item has shape { field: string, message: string }
+```
+
+---
+
+## Acceptance Criteria Summary Table
+
+| AC | FR | Scenario | Pass Criteria |
+|---|---|---|---|
+| AC-01 | W6-01 | Shahed-136 frequency match | confidence > 0.8, label === 'shahed-136' |
+| AC-02 | W6-01 | Lancet-3 frequency match | label === 'lancet-3' |
+| AC-03 | W6-01 | Full profile retrieval | rpmRange [7000,9000], all fields present |
+| AC-04 | W6-01 | Unknown drone type | DroneProfileNotFoundError thrown |
+| AC-05 | W6-01 | Full library enumeration | >=4 profiles, motorcycle class present |
+| AC-06 | W6-02 | Loss decreases across epochs | epoch2.loss < epoch1.loss |
+| AC-07 | W6-02 | ONNX export produces file | file written, non-empty |
+| AC-08 | W6-02 | Validation accuracy | accuracy >= 0.90, FPR <= 0.05 |
+| AC-09 | W6-02 | Mel spectrogram shape | [128, 87], normalized |
+| AC-10 | W6-02 | Training metrics shape | array[5] with epoch/loss/val_accuracy/FPR |
+| AC-11 | W6-03 | Motorcycle temporal-linear flag | isFalsePositive=true, reason="temporal-linear" |
+| AC-12 | W6-03 | RF + circular confirms drone | isFalsePositive=false |
+| AC-13 | W6-03 | High-speed linear is vehicle | isFalsePositive=true, reason="vehicle-speed-pattern" |
+| AC-14 | W6-03 | Low confidence auto-flag | isFalsePositive=true, reason="low-confidence" |
+| AC-15 | W6-03 | Doppler shift vehicle indicator | isFalsePositive=true, speed > 60 km/h |
+| AC-16 | W6-04 | Ingest resamples and normalizes | 22050Hz, peak normalized, no raw bytes in DB |
+| AC-17 | W6-04 | Split ratio exact | train=400, val=50, test=50 |
+| AC-18 | W6-04 | Augmentation modifies audio | length changed, values differ, normalized |
+| AC-19 | W6-04 | TFRecord export | file written, non-empty |
+| AC-20 | W6-04 | Stats on empty dataset | total=0, empty byLabel, empty bySource |
+| AC-21 | W6-05 | Consensus confidence calculation | fusedConfidence > 0.85 |
+| AC-22 | W6-05 | Inverse-distance weighting | closer node >=3x weight of farther node |
+| AC-23 | W6-05 | Majority vote overrides FP | droneClass='shahed-136', isFalsePositive=false |
+| AC-24 | W6-05 | Stale report removal | report removed after maxAgeMs |
+| AC-25 | W6-05 | No reports returns null | getConsensus returns null |
+| AC-26 | W6-06 | Sample count | exactly 1000 samples |
+| AC-27 | W6-06 | 95th percentile ellipse | >=950 of 1000 samples inside ellipse |
+| AC-28 | W6-06 | Ascending track no impact | samples=[], confidence=0 |
+| AC-29 | W6-06 | High-confidence tight ellipse | semiMajorMeters < 200 |
+| AC-30 | W6-06 | Low-confidence wide ellipse | semiMajorMeters > 1000 |
+| AC-31 | W6-07 | INT8 reduces size >50% | size < originalSize x 0.5 |
+| AC-32 | W6-07 | Jetson Nano manifest has CUDA | precision=fp16, cudaConfig defined |
+| AC-33 | W6-07 | RPi4 latency validation | P95 < 200ms |
+| AC-34 | W6-07 | Corrupt model throws diagnostic | EdgeDeploymentError with diagnosticInfo |
+| AC-35 | W6-08 | Full pipeline chain | all 6 modules called, NATS publish called |
+| AC-36 | W6-08 | Status after start | running=true, activeModules=6, drops=0 |
+| AC-37 | W6-08 | NATS disconnect resilience | no throw, result buffered, event emitted |
+| AC-38 | W6-08 | Not running throws error | PipelineNotRunningError thrown |
+| AC-39 | W6-09 | Tactical report format | 3 lines, THREAT/POSIT/ACTION, coarsened coords |
+| AC-40 | W6-09 | No impact projected | "NO IMPACT PROJECTED" in report |
+| AC-41 | W6-09 | Template fallback | no error, 3 sections present, no Claude error message |
+| AC-42 | W6-10 | Encode required fields | all 8 required fields present and correct |
+| AC-43 | W6-10 | Decode round-trip | lat/lon within 0.0001 degrees, remarks preserved |
+| AC-44 | W6-10 | Validation catches bad payload | valid=false, errors for uid and lat |
+
+---
+
+## TypeScript Types Reference
+
+Key types that acceptance criteria are validated against:
+
+```typescript
+// AcousticProfileLibrary
+interface DroneProfile {
+  id: string;
+  label: string;
+  freqMin: number;       // Hz
+  freqMax: number;       // Hz
+  rpmRange: [number, number];
+  source: 'indigo-airguard' | 'field' | 'osint';
+  confidence: number;
+}
+
+// FalsePositiveGuard
+interface FalsePositiveAssessment {
+  isFalsePositive: boolean;
+  reason: string | null;
+  estimatedSpeedKmh?: number;
+}
+
+// MultiNodeFusion
+interface FusedDetection {
+  trackId: string;
+  droneClass: string;
+  fusedConfidence: number;
+  isFalsePositive: boolean;
+  contributingNodes: string[];
+  timestamp: Date;
+}
+
+// MonteCarloPropagator
+interface MonteCarloResult {
+  samples: Array<{ lat: number; lon: number; alt: number }>;
+  confidence: number;
+  reason?: string;
+}
+interface ImpactEllipse {
+  centerLat: number;
+  centerLon: number;
+  semiMajorMeters: number;
+  semiMinorMeters: number;
+  rotationDeg: number;
+}
+
+// BRAVE1Format
+interface BRAVE1Message {
+  type: string;
+  uid: string;
+  time: string;        // ISO 8601 UTC
+  lat: number;
+  lon: number;
+  ce: number;          // circular error (m)
+  hae: number;         // height above ellipsoid (m)
+  remarks: string;
+}
+interface ValidationResult {
+  valid: boolean;
+  errors: Array<{ field: string; message: string }>;
+}
+```
+
+---
+
+*Generated: 2026-03-25 | APEX-SENTINEL W6 | ACCEPTANCE_CRITERIA.md*
