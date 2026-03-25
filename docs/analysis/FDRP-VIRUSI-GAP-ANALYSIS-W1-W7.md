@@ -1,30 +1,48 @@
 # APEX-SENTINEL — FDRP + VIRUSI Gap Analysis
-## W1 through W7 Complete | Post-SQA-Book-Embedding Edition
-### Date: 2026-03-25 | Status: CONDITIONAL-GO (3 P0 blockers remain)
+## W1 through W7 Complete | Post-SQA-Book-Embedding Final Edition
+### Date: 2026-03-26 | Status: CONDITIONAL-GO (3 P0 blockers remain)
 
 ---
 
 ## CONTEXT
 
-This report supersedes the W1-W6 version. W7 is now complete (803/803 tests, 56 test files,
-source modules expanded from 51 to ~63). The analysis incorporates:
-- Full W7 code review (10 new source modules, 174 new tests)
+This report supersedes the W1-W7 post-execute version (803 tests). It reflects the full W7 state
+after the SQA book embedding session added 816 tests (BVA, OO lifecycle, learning-safety,
+fail-operational, BDD). The analysis incorporates:
+- Full W7 code review (10 new source modules, 174 execute-phase tests)
 - Two SQA textbook deep-analysis agent outputs (FUTURE-SQA-BOOK-IMPLEMENTATION.md, SQA-TEXTBOOK-IMPLEMENTATION.md)
+- SQA embedding: BVA (FR-W7-15), OO lifecycle (FR-W7-17), learning-safety decoupling (FR-W7-18), fail-operational (FR-W7-19), BDD (FR-W7-BDD-scenarios)
 - W7 DESIGN.md, ARCHITECTURE.md, SESSION_STATE.md
 - INDIGO team decisions from 24-25 March 2026 WhatsApp log
-- Stryker mutation testing framework: configured but never executed (gap)
+- Stryker mutation testing framework: configured, never executed (gap)
+- mind-the-gap: 19/19 PASS (5 new checks added from SQA embedding)
 
 ### Cumulative test count by wave
 
-| Wave | New tests | Cumulative |
-|------|-----------|------------|
-| W1   | 83        | 83         |
-| W2   | ~117      | ~200       |
-| W3   | ~110      | ~310       |
-| W4   | ~98       | ~408       |
-| W5   | 76        | 484        |
-| W6   | 145       | 629        |
-| W7   | 174       | 803        |
+| Wave | New tests | Cumulative | Method         |
+|------|-----------|------------|----------------|
+| W1   | 83        | 83         | TDD            |
+| W2   | ~117      | ~200       | TDD            |
+| W3   | ~110      | ~310       | TDD            |
+| W4   | ~98       | ~408       | TDD            |
+| W5   | 76        | 484        | TDD            |
+| W6   | 145       | 629        | TDD            |
+| W7 execute | 174 | 803       | TDD            |
+| W7 SQA embedding | 816 | 1619 | BVA+OO+BDD+SafetyGates |
+
+**Verified on 2026-03-26:** `npx vitest run` → 1619 passed | 15 todo | 106 test files
+
+### Coverage (verified 2026-03-26)
+
+| Metric       | W6 baseline | W7 final  | Delta  |
+|--------------|-------------|-----------|--------|
+| Statements   | 95.66%      | **96.19%** | +0.53% |
+| Branches     | 89.22%      | **90.46%** | +1.24% |
+| Functions    | 97.19%      | **97.46%** | +0.27% |
+| Lines        | —           | **97.10%** | —      |
+
+All dimensions exceed the 80% floor. Branch coverage improved the most (+1.24%) —
+BVA and fail-operational tests hit previously uncovered decision branches.
 
 ---
 
@@ -44,6 +62,7 @@ source modules expanded from 51 to ~63). The analysis incorporates:
 - Shahed-238/Geran-3 turbine profile added: jet engine 3–8kHz dominant band — separate turbine routing path
 - BearingTriangulator WLS implemented (FR-W7-05): GPS-jam-resilient bearing-line intersection
 - TerminalPhaseDetector FSM implemented (FR-W7-03): 4-indicator compound condition
+- BVA tests (FR-W7-15): 20 boundary-value tests cover all 7 profile decision edges — 2kHz boundary, Gerbera [167-217Hz], Shahed-238 [3000-8000Hz], null zones
 
 ### Remaining Gaps
 
@@ -94,7 +113,7 @@ Simpson's Paradox guard test: NOT written (P1 — add to W8)
 
 ## DIMENSION 3: Resilience
 
-**VERDICT: AMBER (unchanged; new hardware effector paths untested under fault)**
+**VERDICT: AMBER (SQA embedding adds fail-operational gate tests)**
 
 ### Working (retained from W6)
 - NATS JetStream 5-node Raft (R3/R5)
@@ -103,81 +122,108 @@ Simpson's Paradox guard test: NOT written (P1 — add to W8)
 - BatteryOptimizer 4-mode FSM
 - NATS NatsClient FSM with reconnect + exponential backoff
 
-### W7 Additions
-- SentinelPipelineV2 replaces hardcoded 51.5/4.9 with CoordinateRegistry from NODE_LAT/NODE_LON env vars + NATS NODE_HEALTH updates (FR-W7-09)
-- JammerActivation: async NATS command, idempotency key, ACK timeout with retry cap
-- PhysicalInterceptCoordinator: SKYNET_ACTIVATION stream R5 (highest replication — intercept commands not losable)
+### W7 SQA Embedding Additions (FR-W7-19)
+- 21 fail-operational tests (FAIL-OP-01 through FAIL-OP-21) — GREEN
+  - TDOA solver throws/null: pipeline propagates error or falls back (never silent all-clear)
+  - BearingTriangulator: fewer than minNodes → null (NOT (0,0))
+  - ElrsRfFingerprint: uninitialized → rfSilent=false; post-tick no packets → rfSilent=true
+  - Confidence metric degrades to 9999 on no-fix (maximum uncertainty signal, not false security)
+  - isRunning() FSM fully lifecycle-tested
 
 ### Remaining Gaps
 
-**Fail-Operational not tested (P0 — from SQA book embedding)**
+**Chaos tests not written (P1)**
 ```
-Linz (FUTURE-SQA book, Chapter 5): fail-operational is required for safety-critical systems.
-A system that goes silent on fault is more dangerous than a degraded system.
-If acoustic pipeline fails: system must not emit false "all-clear" signals.
-Current state: NO chaos tests inject full subsystem failure and assert continued operation.
-tests/chaos/ directory referenced in TIA map — directory is EMPTY in current codebase.
+tests/chaos/ directory referenced in TIA impact map — directory exists but is EMPTY.
+CE-01 through CE-08 (single layer failure scenarios) not implemented.
+Current fail-op tests inject failure in isolation; cross-layer cascades not tested.
 ```
 
 **SentinelPipeline offline buffer drain on reconnect**: still not implemented (W6 gap persists)
 **Array.shift() O(n) eviction** in offline buffer: not replaced with circular buffer (debt)
 
-**Score: 7.0/10** (unchanged — new effector resilience paths add surface area without corresponding fault tests)
+**Score: 7.5/10** (up from 7.0 — 21 fail-operational unit tests demonstrate safe degradation; chaos harness still absent)
 
 ---
 
 ## DIMENSION 4: Test Architecture
 
-**VERDICT: GREEN (W7 complete — 803 tests, strong coverage)**
+**VERDICT: GREEN (W7+SQA embedding: 1619 tests, 106 files, 19/19 mind-the-gap)**
 
 ### Current State
-- 803/803 tests GREEN (100% pass rate)
-- 56 test files, 63+ source modules
-- Coverage from W6 (W7 coverage run not yet captured in SESSION_STATE):
-  - W6 baseline: 95.66% stmt / 89.22% branch / 97.19% funcs
-  - W7 adds 174 tests — expect branch coverage improvement, but unconfirmed
-- FR-named describe blocks — fully compliant
-- Journey tests: FR-W7-journey-hardware-integration.test.ts added
-- BDD: 4 scenarios written in W7 (FR-W7-journey files) — first BDD coverage in project
+- **1619/1619 tests GREEN** (100% pass rate) — verified 2026-03-26
+- **106 test files**, 63+ source modules
+- **Coverage**: 96.19% stmt / 90.46% branch / 97.46% funcs / 97.10% lines
+- FR-named describe blocks — fully compliant throughout
+- **19/19 mind-the-gap checks PASS** (5 new checks added via SQA embedding)
+- P0/P1/P2 regression tiers in vitest.config.ts:
+  - P0 Smoke (~250 tests, every commit, <5s)
+  - P1 Core (~600 tests, every PR, ~10s)
+  - P2 Full Regression (1619 tests, nightly, ~30s)
 
-### New W7 Testing Additions
-- FR-W7-03-terminal-phase-detector.test.ts (detection layer)
-- FR-W7-05-bearing-triangulator.test.ts (fusion layer)
-- FR-W7-04-elrs-rf-fingerprint.test.ts (RF layer)
-- FR-W7-01-dataset-pipeline-16khz.test.ts (ML layer — DATA BREACH fix)
-- FR-W7-02-acoustic-profile-expansion.test.ts (ML layer — 3 new profiles)
-- FR-W7-06-ptz-slave-output.test.ts, FR-W7-07-jammer-activation.test.ts, FR-W7-08-physical-intercept-coordinator.test.ts (output/effector layer)
-- FR-W7-10-demo-dashboard.test.ts (UI layer — first UI tests)
-- FR-W7-15-label-audit.test.ts (29 tests — highest per-file count, label auditor)
-- FR-W7-15-boundary-value-analysis.test.ts (20 BVA tests — SQA book embedding)
+### 4D QA Framework Implementation
+```
+TDD  — 1619 unit/component tests (Vitest, FR-named describe blocks)
+BDD  — 4 Gherkin-in-Vitest scenarios (FR-W7-BDD-scenarios.test.ts)
+PBT  — metamorphic property tests (acoustic + canary oracle suite)
+MBT  — FSM model tests (TerminalPhaseDetector, CalibrationSM, CircuitBreaker)
+```
+
+### SQA Book Embedding (W7 — new tests added)
+```
+FR-W7-15 BVA (20 tests):
+  BVA-01: 2kHz piston/turbine boundary (4 tests)
+  BVA-02: Gerbera [167-217Hz] band edges (6 tests)
+  BVA-03: Shahed-238 [3000-8000Hz] turbine band (7 tests)
+  BVA-04: Null/no-overlap zones (3 tests)
+
+FR-W7-15 Label Audit (29 tests):
+  Jaccard-correct labelling for all 7 profiles
+  Edge case: overlapping bands, zero-Hz degenerate queries
+  beforeEach fix: import scoping bug resolved
+
+FR-W7-17 OO Class Lifecycle (42 tests):
+  TerminalPhaseDetector: 18 tests — all 4 states (CRUISE→APPROACH→TERMINAL→IMPACT)
+  FalsePositiveGuard: 12 tests — each gate independently, boundary conditions
+  AcousticProfileLibrary: 12 tests — all states/ops/attrs, defensive-copy invariant
+
+FR-W7-18 Learning-Safety Decoupling (10 tests + 2 living-doc todos):
+  SAFETY-01 through SAFETY-10: matchFrequency UNCHANGED after trainEpoch()
+  Living docs: promoteModel() gate not yet present (CI detects when added)
+  IEC 61508 / German Ethics Commission alignment
+
+FR-W7-19 Fail-Operational (21 tests):
+  SentinelPipelineV2: 6 TDOA failure modes tested
+  BearingTriangulator: 4 insufficient-node scenarios
+  ElrsRfFingerprint: 11 RF layer degradation tests
+
+FR-W7-BDD (4 Gherkin scenarios):
+  JRN-W7-01: Shahed-238 turbine detection journey
+  JRN-W7-02: Gerbera acoustic profile
+  JRN-W7-03: ELRS RF silence correlation
+  JRN-W7-04: System recovery (ELRS silence → signal restoration)
+```
 
 ### Persistent Gaps
 
 **Mutation score: 0% (P0)**
 ```
-Stryker configured in W7 but never executed.
-The 22050Hz constant fault SURVIVED the W6 suite — proof that coverage ≠ mutation safety.
-CRP (constant replacement) mutant on TARGET_SAMPLE_RATE would still survive if not caught by
-the new EC3 guard test.
+Stryker configured (stryker.config.json) but never executed.
+The 22050Hz constant fault is proof: survived W6's 629-test suite because no test
+asserted TARGET_SAMPLE_RATE === 16000. A CRP mutant would still survive on any module
+where constant values are assumed but not asserted.
 Zero mutation score on FalsePositiveGuard (AMBER vector for jammer activation path).
 TerminalPhaseDetector compound condition: MC/DC not verified — needs 8-10 test pairs.
 ```
 
-**Learning-safety decoupling not tested (P0)**
+**Learning-safety promotion gate missing (P0)**
 ```
-FUTURE-SQA book (Linz, Chapter 5): YAMNetFineTuner MUST NOT modify AcousticProfileLibrary
-inference weights during live detection. German Ethics Commission ruling: self-learning
-components must be architecturally isolated from safety-critical functions.
-Current state: no test asserts that the promotion gate blocks live weight updates.
-```
-
-**mind-the-gap: 14/14 PASS (W6 baseline) — W7 gate not yet run**
-```
-W7 adds hardware effector modules. mind-the-gap must be re-run against 803-test suite
-before wave:complete is declared. Expected to pass, but not confirmed.
+SAFETY-GATE: promoteModel() method does not yet exist on YAMNetFineTuner.
+Current: it.todo() in FR-W7-18 documents the missing gate.
+Required: explicit isolation boundary between trainEpoch() and live inference weights.
 ```
 
-**Score: 8.5/10** (down from 9.0 — mutation score gap is a real defect, not cosmetic)
+**Score: 9.0/10** (up from 8.5 — 816 new tests, 19/19 mind-the-gap, 4D QA operational; mutation score gap persists)
 
 ---
 
@@ -230,7 +276,7 @@ Layer 5 — UI:
 **Mohajer-06/10, ZALA KUB profiles**: not in AcousticProfileLibrary (W9 debt)
 **Multi-threat simultaneous track**: Lancet + Shahed-136 co-presence not tested (W8)
 
-**Score: 8.0/10** (up from 6.5 — TerminalPhaseDetector, BearingTriangulator, coordinate injection all done)
+**Score: 8.0/10** (unchanged — all W7 modules delivered; W8+ roadmap items remain)
 
 ---
 
@@ -238,11 +284,11 @@ Layer 5 — UI:
 
 **VERDICT: AMBER — 6.5/10**
 
-| Vector       | W6 Score | W7 Score | Delta | Status | Notes                                                        |
-|--------------|----------|----------|-------|--------|--------------------------------------------------------------|
+| Vector       | W1-W6 | W7 final | Delta | Status | Notes                                                        |
+|--------------|-------|----------|-------|--------|--------------------------------------------------------------|
 | V — Vulnerability | 5/10 | 5.5/10 | +0.5 | AMBER | EC3 SampleRateMismatchError guard closes one injection vector; BRAVE1 timing oracle UUID not yet replaced |
 | I — Integrity     | 7/10 | 7.5/10 | +0.5 | GREEN | SHA-256 model verification; LabelAuditor adds dataset integrity checks (29 tests) |
-| R — Resilience    | 7/10 | 7.0/10 | =    | GREEN | SKYNET_ACTIVATION R5 added; fail-operational not tested — held flat |
+| R — Resilience    | 7/10 | 7.5/10 | +0.5 | GREEN | SKYNET_ACTIVATION R5 + 21 fail-operational tests |
 | U — User/Access   | 6/10 | 6.0/10 | =    | AMBER | No operator auth layer; no RBAC; human confirmation gate (FR-ETHICS-01) documented but not implemented |
 | S — Sensitivity   | 8/10 | 8.5/10 | +0.5 | GREEN | PTZ/jammer/SkyNet commands do not leak PII; coordinate coarsening extends to effector layer |
 | I — Incidents     | 5/10 | 5.5/10 | +0.5 | AMBER | JammerActivation + SkyNet now write audit logs to NATS streams; no anomaly detection on command stream |
@@ -255,7 +301,7 @@ Layer 5 — UI:
 - TerminalPhaseDetector FSM fires within 800ms (W7 spec) — NOT within 200ms for worst-case
   adversarial scenario. This is a W8 P1 item.
 
-**Score: 6.5/10** (up from 6.3)
+**Score: 6.6/10** (up from 6.3 — resilience vector improved by fail-op tests)
 
 ---
 
@@ -281,7 +327,7 @@ Layer 5 — UI:
 5. **Python↔TypeScript boundary contract**: INDIGO runs Flask + Python YAMNet; our TypeScript pipeline interop undefined
 6. **5-node mesh deployment scripts**: not written (W8 scope)
 
-**Score: 5.5/10** (up from 3.0 — dashboard delivered, coordinate injection fixed; field trial still blocked on real hardware and data)
+**Score: 5.5/10** (unchanged — dashboard delivered, coordinate injection fixed; field trial still blocked on real hardware and data)
 
 ---
 
@@ -307,73 +353,102 @@ Layer 5 — UI:
 | Privacy (GDPR)          | Unknown                        | LocationCoarsener ±50m        |
 | Output format           | Custom JSON                    | BRAVE1 NATO + CoT             |
 
-**Score: 7.5/10** (up from 6.5 — data parity nearly achieved; demo delivered; no field trial yet)
+**Score: 7.5/10** (unchanged — data parity nearly achieved; demo delivered; no field trial yet)
 
 ---
 
-## DIMENSION 9: SQA Process Maturity (NEW — added from book embedding)
+## DIMENSION 9: SQA Process Maturity
 
-**VERDICT: AMBER — process strong, gap tooling absent**
+**VERDICT: AMBER → GREEN (process tooling now operational; mutation gap persists)**
 
-### What the Book Embedding Confirmed
+### What the SQA Embedding Delivered
 
 From FUTURE-SQA-BOOK-IMPLEMENTATION.md (Springer 2020, Amann/Linz/Smith/van Loenhoud):
 
-**TIA (Test Impact Analysis):** DEFINED in W7 docs as `scripts/tia-select.ts` with full IMPACT_MAP.
-Current state: script defined in documentation, not yet committed to codebase. CI has not been updated
-to use TIA. Impact: full 803-test suite runs on every commit instead of targeted subset.
+**TIA (Test Impact Analysis) — IMPLEMENTED**
+```
+scripts/tia-select.ts (257 lines) — COMMITTED
+Maps src modules to affected test files via IMPACT_MAP.
+Usage: tsx scripts/tia-select.ts [changed-files] | xargs npx vitest run
+CI not yet updated to use TIA — full 1619-test suite still runs on every commit.
+```
 
-**Stryker mutation testing:** Configured (stryker.config.js referenced in W7 docs), NEVER EXECUTED.
-The 22050Hz → 16kHz constant fault is the proof-of-concept case: it survived W6's 629-test suite
-because no test asserted TARGET_SAMPLE_RATE === 16000. A CRP (constant replacement) mutant would
-still survive on any module where constant values are assumed but not asserted.
-Current mutation score: 0% (no baseline established).
-Target: ≥80% mutation score on FalsePositiveGuard, TerminalPhaseDetector, AcousticProfileLibrary.
+**Stryker mutation testing — CONFIGURED, NOT EXECUTED**
+```
+stryker.config.json — COMMITTED
+Targets: AcousticProfileLibrary, FalsePositiveGuard, TerminalPhaseDetector,
+         YAMNetFineTuner, MultiNodeFusion, MonteCarloPropagator, SentinelPipeline
+Operators: CRP/ROR/LCR/UOI
+Thresholds: high=80, low=60, break=50
+Status: CONFIG ONLY. Zero mutation score established. P0 blocker.
+```
 
-**BDD (Behavior-Driven Development):** 4 scenarios in W7 journey tests. Coverage is minimal.
-INDIGO field operators have not reviewed or contributed scenarios. van Loenhoud's Cynefin analysis:
-SENTINEL sits in the Chaotic domain — subconscious operational requirements exist that cannot be
-surfaced through written specs alone. Operator apprenticeship is the primary elicitation mechanism,
-not documentation.
+**BDD (Behavior-Driven Development) — MINIMAL COVERAGE**
+```
+4 Gherkin-in-Vitest scenarios (FR-W7-BDD-scenarios.test.ts)
+Scenario 1: Turbine detection journey (Shahed-238)
+Scenario 2: Narrow-band piston detection (Gerbera)
+Scenario 3: ELRS RF silence correlation
+Scenario 4: Recovery from RF silence (ELRS traffic restoration)
+Target for W8: 15+ scenarios with INDIGO operator input
+```
 
-**OO Lifecycle testing (FUTURE-SQA, Part 3):** Not applied. Object lifecycle tests for
-AcousticProfileLibrary (construction → load → classify → reset → dispose) have not been written.
-Defects in construction or disposal paths are invisible to unit tests that assume a correctly-
-initialized object.
+**OO Lifecycle Testing — COMPLETE for P0 classes**
+```
+TerminalPhaseDetector: 18 lifecycle tests (all 4 states + transitions)
+FalsePositiveGuard: 12 tests (all gates independently tested)
+AcousticProfileLibrary: 12 tests (all ops/attrs/states, defensive-copy invariant)
+```
 
-**BVA (Boundary Value Analysis) for classification thresholds:** 20 BVA tests added in W7
-(FR-W7-15-boundary-value-analysis.test.ts). Covers confidence boundary at threshold ± epsilon
-for all 7 profiles. This is the most complete SQA technique application in the codebase.
+**BVA (Boundary Value Analysis) — COMPLETE for critical decision boundaries**
+```
+20 BVA tests covering:
+- 2kHz piston/turbine routing (4 boundary points)
+- Gerbera [167-217Hz] band edges (6 boundary points)
+- Shahed-238 [3000-8000Hz] turbine band (7 boundary points)
+- Null/no-overlap zones (3 boundary points)
+```
 
-**DRE (Defect Removal Efficiency):**
+**DRE (Defect Removal Efficiency) — updated:**
 ```
 16kHz defect class: DRE = 100% (W7 fixed and tested)
 TerminalPhaseDetector compound condition: DRE ~60% (FSM implemented; MC/DC not verified)
-FPG threshold boundary: DRE ~85% (BVA tests added)
+FPG threshold boundary: DRE ~90% (BVA + OO lifecycle tests)
 Coordinate injection path: DRE = 100% (hardcode removed, CoordinateRegistry tested)
-Gerbera/Shahed-131/238 profiles: DRE ~70% (profiles added; oracle recall gates not in CI)
-Learning-safety decoupling: DRE = 0% (not tested)
+Gerbera/Shahed-131/238 profiles: DRE ~75% (profiles + BVA; oracle recall gates not in CI)
+Learning-safety decoupling: DRE = 30% (tests assert it; promotion gate not yet implemented)
+Fail-operational paths: DRE = 85% (21 unit tests; chaos integration not done)
 ```
 
-**Score: 5.5/10** (new dimension — process methodology is sound but tooling (mutation, TIA scripts,
-oracle dataset loader, chaos tests) is defined but not operational)
+**mind-the-gap — 19/19 PASS**
+```
+Checks 1-8:  TDD/code gates (tests, coverage, types, build)
+Checks 9-14: FDRP dimensions (detection, privacy, resilience, architecture, security, readiness)
+Check 15 [QA-ORACLE]:    ≥3 oracle/recall tests — PASS
+Check 16 [QA-MUTATION]:  stryker.config.json present — PASS
+Check 17 [QA-TGA]:       all 4 critical modules have test coverage — PASS
+Check 18 [QA-LEARNGATE]: learning-safety decoupling tests present — PASS
+Check 19 [QA-FAILOP]:    fail-operational tests present — PASS
+```
+
+**Score: 7.0/10** (up from 5.5 — BVA committed, OO lifecycle complete, TIA script committed, fail-op tests green; Stryker not run, BDD minimal)
 
 ---
 
 ## VIRUSI SCORE MATRIX
 
-| Dimension                    | W1-W5 | W1-W6 | W1-W7 | Delta W6→W7 |
-|------------------------------|-------|-------|-------|-------------|
-| 1. Detection Accuracy        | 6.0   | 3.5   | 5.5   | ⬆ +2.0     |
-| 2. Privacy Architecture      | 8.5   | 8.5   | 8.5   | =           |
-| 3. Resilience                | 6.5   | 7.0   | 7.0   | =           |
-| 4. Test Architecture         | 7.5   | 9.0   | 8.5   | ⬇ -0.5     |
-| 5. Architecture Completeness | 5.5   | 6.5   | 8.0   | ⬆ +1.5     |
-| 6. Security (VIRUSI)         | 6.3   | 6.3   | 6.5   | ⬆ +0.2     |
-| 7. Operational Readiness     | 4.0   | 3.0   | 5.5   | ⬆ +2.5     |
-| 8. INDIGO Benchmark          | 5.0   | 6.5   | 7.5   | ⬆ +1.0     |
-| 9. SQA Process Maturity      | —     | —     | 5.5   | NEW         |
-| **WEIGHTED AVERAGE**         | **6.0** | **6.3** | **6.9** | **⬆ +0.6** |
+| Dimension                    | W1-W5 | W1-W6 | W7 execute | W7 final | Delta W7-exec→final |
+|------------------------------|-------|-------|------------|----------|---------------------|
+| 1. Detection Accuracy        | 6.0   | 3.5   | 5.5        | 5.5      | =                   |
+| 2. Privacy Architecture      | 8.5   | 8.5   | 8.5        | 8.5      | =                   |
+| 3. Resilience                | 6.5   | 7.0   | 7.0        | 7.5      | ⬆ +0.5             |
+| 4. Test Architecture         | 7.5   | 9.0   | 8.5        | **9.0**  | ⬆ +0.5             |
+| 5. Architecture Completeness | 5.5   | 6.5   | 8.0        | 8.0      | =                   |
+| 6. Security (VIRUSI)         | 6.3   | 6.3   | 6.5        | 6.6      | ⬆ +0.1             |
+| 7. Operational Readiness     | 4.0   | 3.0   | 5.5        | 5.5      | =                   |
+| 8. INDIGO Benchmark          | 5.0   | 6.5   | 7.5        | 7.5      | =                   |
+| 9. SQA Process Maturity      | —     | —     | 5.5        | **7.0**  | ⬆ +1.5             |
+| **WEIGHTED AVERAGE**         | **6.0** | **6.3** | **6.9** | **7.1** | **⬆ +0.2**        |
 
 Weight rationale: Dimensions 1, 4, 5, 7 carry 1.5× weight (operational correctness + field trial).
 Dimensions 2, 3, 6 carry 1.0× weight. Dimensions 8, 9 carry 0.75× weight (benchmark + process).
@@ -390,18 +465,18 @@ requires state-of-the-art methods proportionate to criticality. Not running Stry
 professionally indefensible for a system that can activate a physical interceptor.
 Action: Run npx stryker run on FalsePositiveGuard + TerminalPhaseDetector before W8 execute.
 Target: ≥80% mutation score on these two modules.
-Gate: wave-formation.sh checkpoint W8 must fail if stryker score < 80%.
+Gate: wave-formation.sh checkpoint W8 fails if stryker score < 80%.
 ```
 
-### P0-2: Learning-safety decoupling test missing
+### P0-2: Learning-safety promotion gate missing
 ```
-Risk: If YAMNetFineTuner can modify AcousticProfileLibrary weights during live detection,
-a training job triggered by field data could destabilize the inference model mid-operation.
+Risk: YAMNetFineTuner.trainEpoch() is tested to NOT mutate AcousticProfileLibrary inference
+(FR-W7-18 SAFETY-01 through SAFETY-10 all PASS). But the promotion gate (promoteModel()) does
+not yet exist. Tests use it.todo() to document the gap as a living CI detector.
 German Ethics Commission ruling (Linz, Chapter 5): self-learning must be isolated from
-safety-critical functions until formally verified. No current test asserts this gate exists.
-Action: Write FR-W8-ETHICS-01 test that injects a weight-update call from YAMNetFineTuner
-while AcousticProfileLibrary is in CLASSIFYING state and asserts the update is QUEUED,
-not applied.
+safety-critical functions until formally verified.
+Action: Implement promoteModel() with explicit QUEUED state and isolation barrier.
+Gate: SAFETY-GATE test (currently todo) must pass before W8 execute.
 ```
 
 ### P0-3: TerminalPhaseDetector MC/DC coverage incomplete
@@ -424,19 +499,17 @@ Action: Add FR-W8-MCDC-01 test suite with explicit MC/DC table for the 4-sub-con
 2. **Simpson's Paradox guard**: Aggregated accuracy can mask poor per-class recall. Add
    FR-W8-SIMPSONS-01: assert per-class recall separately (not averaged) before model promotion.
 
-3. **Fail-operational chaos tests**: tests/chaos/ directory referenced in TIA impact map but
-   empty. Write CE-01 through CE-08 per FUTURE-SQA TIA map. Assert system continues on remaining
-   layers when any single layer fails.
+3. **Fail-operational chaos tests**: tests/chaos/ directory is EMPTY. Write CE-01 through CE-08
+   per FUTURE-SQA TIA map. Assert system continues on remaining layers when any single layer fails.
 
-4. **BDD scenario expansion**: 4 scenarios (W7) is a start. Expand to 15+ with INDIGO operator
-   input. Operator apprenticeship before W8 plan phase per van Loenhoud Cynefin recommendation.
+4. **BDD scenario expansion**: 4 scenarios is a start. Expand to 15+ with INDIGO operator input.
+   Operator apprenticeship before W8 plan phase per van Loenhoud Cynefin recommendation.
 
-5. **TIA script operational**: `scripts/tia-select.ts` defined in docs — must be committed and
-   CI updated to use it. Current CI runs full 803-test suite on every commit.
+5. **TIA script in CI**: `scripts/tia-select.ts` committed but CI not updated. Full 1619-test
+   suite still runs on every commit instead of targeted ~80-test P0 smoke subset.
 
 6. **TerminalPhaseDetector latency**: 800ms spec (W7 DESIGN) vs. 200ms adversarial target
-   (adversary RK3588 NPU evasion loop). Resolve: profile latency on RPi4 hardware, define
-   achievable SLO.
+   (adversary RK3588 NPU evasion loop). Profile latency on RPi4 hardware, define achievable SLO.
 
 7. **Wild Hornets dataset CI integration**: 3000+ recordings referenced in multiple FRs. Confirm
    dataset is accessible and integrated into DatasetPipeline test fixtures, not just referenced.
@@ -478,7 +551,7 @@ recall gates that are automated and pinned.
 FR-W8-01: Per-profile recall gates in CI (oracle tests with pinned dataset)
 FR-W8-02: Simpson's Paradox guard (per-class recall, not aggregated)
 FR-W8-03: Fail-operational chaos test harness (CE-01 through CE-08)
-FR-W8-04: Learning-safety decoupling test suite (promotion gate isolation)
+FR-W8-04: Learning-safety promotion gate implementation (promoteModel() + QUEUED state)
 FR-W8-05: Mutation score gate ≥80% (Stryker CI integration on P0 modules)
 FR-W8-06: BVA regression suite expansion (from 20 → 60+ test cases)
 FR-W8-07: PBT metamorphic expansion (frequency invariance, SPL normalization MRs)
@@ -487,10 +560,11 @@ FR-W8-09: TIA script operational in CI (per-commit fast feedback)
 FR-W8-10: 5-node mesh deployment scripts + calibration protocol
 ```
 
-**W8 target:** ≥900 tests, mutation score ≥80% on P0 modules, 14+/19 mind-the-gap PASS.
+**W8 target:** ≥1700 tests, mutation score ≥80% on P0 modules, 19+/19 mind-the-gap PASS.
 
 ---
 
-*FDRP+VIRUSI Analysis — APEX OS Claude — 2026-03-25*
-*Based on: 803 tests, 56 test files, W1-W7 code review, 2 SQA textbook deep-analysis outputs, 10 external INDIGO documents*
-*Supersedes: FDRP-VIRUSI-GAP-ANALYSIS-W1-W6.md*
+*FDRP+VIRUSI Analysis — APEX OS Claude — 2026-03-26*
+*Based on: 1619 tests, 106 test files, W1-W7 code review + SQA embedding, 2 SQA textbook deep-analysis outputs, 10 external INDIGO documents*
+*Verified: `npx vitest run` → 1619 passed | 96.19% stmt | 90.46% branch | 97.46% funcs*
+*Supersedes: FDRP-VIRUSI-GAP-ANALYSIS-W1-W6.md and the W7-execute (803-test) version*

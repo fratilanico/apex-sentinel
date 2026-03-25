@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX-SENTINEL — Acoustic Intelligence Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --navy:      #0d1b2a;
+    --navy-2:    #0f2035;
+    --navy-3:    #162840;
+    --navy-4:    #1a3050;
+    --panel:     #0a1525;
+    --cyan:      #00d4ff;
+    --cyan-dim:  #00aac8;
+    --cyan-glow: rgba(0,212,255,0.15);
+    --amber:     #ffaa00;
+    --green:     #00e676;
+    --red:       #ff4444;
+    --text:      #c8d8e8;
+    --text-dim:  #7a9ab8;
+    --border:    rgba(0,212,255,0.2);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ─── HEADER ─────────────────────────────────────────────── */
+  .header {
+    background: linear-gradient(135deg, var(--panel) 0%, var(--navy-3) 100%);
+    border-bottom: 2px solid var(--cyan);
+    padding: 32px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 32px rgba(0,212,255,0.08);
+  }
+  .header-left h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .header-left .subtitle {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .header-badges {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .badge {
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  .badge-green  { background: rgba(0,230,118,0.12); border: 1px solid rgba(0,230,118,0.4); color: var(--green); }
+  .badge-cyan   { background: rgba(0,212,255,0.12); border: 1px solid var(--border); color: var(--cyan); }
+  .badge-amber  { background: rgba(255,170,0,0.12); border: 1px solid rgba(255,170,0,0.4); color: var(--amber); }
+
+  /* ─── NAV ─────────────────────────────────────────────────── */
+  .nav {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px;
+    display: flex;
+    gap: 0;
+  }
+  .nav-item {
+    padding: 14px 20px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .nav-item:hover { color: var(--text); }
+  .nav-item.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+  /* ─── SECTIONS ───────────────────────────────────────────── */
+  .section { display: none; padding: 40px 48px; max-width: 1400px; margin: 0 auto; }
+  .section.active { display: block; }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--cyan);
+    margin-bottom: 8px;
+  }
+  .section-heading {
+    font-size: 22px;
+    font-weight: 700;
+    color: #e8f4ff;
+    margin-bottom: 32px;
+  }
+
+  /* ─── ARCHITECTURE DIAGRAM ───────────────────────────────── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 80px 1fr 80px 1fr;
+    gap: 0;
+    align-items: start;
+    margin-bottom: 40px;
+  }
+  .arch-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .arch-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 40px;
+    color: var(--cyan-dim);
+    font-size: 24px;
+  }
+  .arch-node {
+    background: var(--navy-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    position: relative;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .arch-node:hover {
+    border-color: var(--cyan);
+    box-shadow: 0 0 20px var(--cyan-glow);
+  }
+  .arch-node-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .arch-node-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e8f4ff;
+    margin-bottom: 6px;
+  }
+  .arch-node-detail {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.8;
+  }
+  .arch-node.cyan-accent { border-color: rgba(0,212,255,0.4); }
+  .arch-node.amber-accent { border-color: rgba(255,170,0,0.3); }
+  .arch-node.green-accent { border-color: rgba(0,230,118,0.3); }
+
+  .arch-column-header {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--cyan);
+    text-align: center;
+    padding: 10px;
+    background: rgba(0,212,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 4px;
+  }
+
+  .pulse-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ─── STATS ROW ──────────────────────────────────────────── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .stat-card {
+    background: var(--navy-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+  }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--cyan);
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-value.green { color: var(--green); }
+  .stat-value.amber { color: var(--amber); }
+  .stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+
+  /* ─── CAPABILITY TABLE ───────────────────────────────────── */
+  .cap-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .cap-card {
+    background: var(--navy-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .cap-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--cyan);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .cap-item-check { color: var(--green); font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .cap-item-text { color: var(--text); }
+  .cap-item-sub { color: var(--text-dim); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+
+  /* ─── 4D QA ──────────────────────────────────────────────── */
+  .qa-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  .qa-card {
+    background: var(--navy-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+  }
+  .qa-dimension {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cyan);
+    margin-bottom: 4px;
+  }
+  .qa-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+  .qa-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .qa-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--navy-2);
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .qa-item-name { color: var(--text); }
+  .qa-item-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: rgba(0,212,255,0.1);
+    color: var(--cyan);
+  }
+  .qa-item-count.green { background: rgba(0,230,118,0.1); color: var(--green); }
+
+  /* ─── MIND-THE-GAP ───────────────────────────────────────── */
+  .mtg-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .mtg-card {
+    background: var(--navy-3);
+    border-radius: 6px;
+    padding: 14px;
+    border-left: 3px solid;
+    transition: transform 0.15s;
+  }
+  .mtg-card:hover { transform: translateY(-2px); }
+  .mtg-card.pass { border-left-color: var(--green); }
+  .mtg-card.warn { border-left-color: var(--amber); }
+  .mtg-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .mtg-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #e8f4ff;
+    margin-bottom: 4px;
+  }
+  .mtg-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .mtg-status.pass { color: var(--green); }
+  .mtg-status.warn { color: var(--amber); }
+
+  /* ─── FDRP RADAR ─────────────────────────────────────────── */
+  .fdrp-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-bottom: 32px;
+  }
+  .radar-container {
+    background: var(--navy-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .fdrp-table-container {
+    background: var(--navy-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+  }
+  .fdrp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .fdrp-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+  }
+  .fdrp-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(0,212,255,0.06);
+    vertical-align: middle;
+  }
+  .fdrp-table tr:last-child td { border-bottom: none; }
+  .score-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .score-track {
+    flex: 1;
+    height: 6px;
+    background: var(--navy-2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .score-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+  .score-fill.green { background: var(--green); }
+  .score-fill.amber { background: var(--amber); }
+  .score-fill.red   { background: var(--red); }
+  .score-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #e8f4ff;
+    min-width: 28px;
+  }
+  .dim-name { color: var(--text); font-weight: 500; }
+  .dim-verdict { font-size: 11px; color: var(--text-dim); }
+  .delta-up   { color: var(--green); font-size: 11px; font-family: 'JetBrains Mono'; }
+  .delta-same { color: var(--text-dim); font-size: 11px; }
+
+  /* ─── DRONE PROFILES ─────────────────────────────────────── */
+  .profile-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .profile-card {
+    background: var(--navy-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 12px;
+    text-align: center;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: default;
+  }
+  .profile-card:hover {
+    border-color: var(--cyan);
+    box-shadow: 0 0 16px var(--cyan-glow);
+  }
+  .profile-icon { font-size: 24px; margin-bottom: 8px; }
+  .profile-name { font-size: 11px; font-weight: 700; color: #e8f4ff; margin-bottom: 4px; }
+  .profile-type {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-bottom: 8px;
+    display: inline-block;
+  }
+  .type-piston   { background: rgba(255,170,0,0.15); color: var(--amber); }
+  .type-electric { background: rgba(0,212,255,0.12); color: var(--cyan); }
+  .type-turbine  { background: rgba(255,68,68,0.12); color: var(--red); }
+  .profile-freq  { font-size: 10px; font-family: 'JetBrains Mono'; color: var(--text-dim); }
+
+  /* ─── BLOCKERS ────────────────────────────────────────────── */
+  .blocker-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+  .blocker-card {
+    background: var(--navy-3);
+    border: 1px solid rgba(255,68,68,0.3);
+    border-left: 3px solid var(--red);
+    border-radius: 6px;
+    padding: 16px 20px;
+  }
+  .blocker-id   { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--red); margin-bottom: 4px; }
+  .blocker-name { font-size: 13px; font-weight: 600; color: #e8f4ff; margin-bottom: 6px; }
+  .blocker-desc { font-size: 12px; color: var(--text-dim); }
+
+  /* ─── FOOTER ──────────────────────────────────────────────── */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>APEX-SENTINEL</h1>
+    <div class="subtitle">Acoustic Intelligence · Drone Detection · Counter-UAS</div>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-green"><span class="pulse-dot"></span>1619 TESTS GREEN</span>
+    <span class="badge badge-cyan">19/19 MIND-THE-GAP</span>
+    <span class="badge badge-cyan">96.19% COVERAGE</span>
+    <span class="badge badge-amber">W7 COMPLETE</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <div class="nav-item active" onclick="showSection('architecture')">Architecture</div>
+  <div class="nav-item" onclick="showSection('capabilities')">W7 Capabilities</div>
+  <div class="nav-item" onclick="showSection('qa')">4D QA Framework</div>
+  <div class="nav-item" onclick="showSection('mindgap')">Mind-the-Gap</div>
+  <div class="nav-item" onclick="showSection('fdrp')">FDRP Report</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: ARCHITECTURE                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="section-architecture" class="section active">
+  <div class="section-title">Section 01</div>
+  <div class="section-heading">System Architecture — Edge to Dashboard</div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value">7</div>
+      <div class="stat-label">Drone Profiles</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">16kHz</div>
+      <div class="stat-label">Sample Rate</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">5</div>
+      <div class="stat-label">NATS Streams W7</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value green">63+</div>
+      <div class="stat-label">Source Modules</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">6</div>
+      <div class="stat-label">Architecture Layers</div>
+    </div>
+  </div>
+
+  <!-- Drone profiles row -->
+  <div class="profile-grid">
+    <div class="profile-card">
+      <div class="profile-icon">🚁</div>
+      <div class="profile-name">Shahed-136</div>
+      <div><span class="profile-type type-piston">Piston</span></div>
+      <div class="profile-freq">100–400 Hz</div>
+    </div>
+    <div class="profile-card">
+      <div class="profile-icon">🎯</div>
+      <div class="profile-name">Shahed-131</div>
+      <div><span class="profile-type type-piston">Piston</span></div>
+      <div class="profile-freq">150–400 Hz</div>
+    </div>
+    <div class="profile-card">
+      <div class="profile-icon">✈️</div>
+      <div class="profile-name">Shahed-238</div>
+      <div><span class="profile-type type-turbine">Turbine</span></div>
+      <div class="profile-freq">3000–8000 Hz</div>
+    </div>
+    <div class="profile-card">
+      <div class="profile-icon">🌸</div>
+      <div class="profile-name">Gerbera</div>
+      <div><span class="profile-type type-piston">Piston</span></div>
+      <div class="profile-freq">167–217 Hz</div>
+    </div>
+    <div class="profile-card">
+      <div class="profile-icon">⚡</div>
+      <div class="profile-name">Lancet-3</div>
+      <div><span class="profile-type type-electric">Electric</span></div>
+      <div class="profile-freq">1000–4000 Hz</div>
+    </div>
+    <div class="profile-card">
+      <div class="profile-icon">📡</div>
+      <div class="profile-name">Orlan-10</div>
+      <div><span class="profile-type type-piston">Piston</span></div>
+      <div class="profile-freq">400–1200 Hz</div>
+    </div>
+    <div class="profile-card">
+      <div class="profile-icon">🔷</div>
+      <div class="profile-name">Mavic Mini</div>
+      <div><span class="profile-type type-electric">Electric</span></div>
+      <div class="profile-freq">800–3000 Hz</div>
+    </div>
+  </div>
+
+  <!-- Architecture flow diagram -->
+  <div class="arch-grid">
+    <!-- EDGE NODES -->
+    <div class="arch-column">
+      <div class="arch-column-header">Edge Sensors (RPi4 / Jetson)</div>
+      <div class="arch-node green-accent">
+        <div class="arch-node-label">Layer 0 — Acoustic</div>
+        <div class="arch-node-title">AcousticPipeline</div>
+        <div class="arch-node-detail">
+          16kHz sampling<br>
+          FFT + VAD<br>
+          YAMNet ONNX<br>
+          FalsePositiveGuard<br>
+          AcousticProfileLibrary<br>
+          TerminalPhaseDetector
+        </div>
+      </div>
+      <div class="arch-node cyan-accent">
+        <div class="arch-node-label">Layer 0 — RF</div>
+        <div class="arch-node-title">RF Fingerprint</div>
+        <div class="arch-node-detail">
+          ELRS 900MHz detection<br>
+          RSSI baseline<br>
+          rfSilent flag<br>
+          PacketLossRate<br>
+          BurstPattern ID
+        </div>
+      </div>
+      <div class="arch-node">
+        <div class="arch-node-label">Layer 0 — GPS / Kalman</div>
+        <div class="arch-node-title">TDoA + EKF</div>
+        <div class="arch-node-detail">
+          TdoaSolver<br>
+          CoordinateRegistry<br>
+          EKF 6D Singer Q<br>
+          BearingTriangulator<br>
+          WLS GPS-jam fallback
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 1 -->
+    <div class="arch-arrow">
+      <div style="text-align:center">
+        <div style="color:var(--cyan);font-size:20px;">→</div>
+        <div style="font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono';margin-top:4px;">NATS<br>JetStream</div>
+      </div>
+    </div>
+
+    <!-- CENTRAL SERVER -->
+    <div class="arch-column">
+      <div class="arch-column-header">Central Server</div>
+      <div class="arch-node cyan-accent">
+        <div class="arch-node-label">Layer 2 — Fusion</div>
+        <div class="arch-node-title">MultiNodeFusion</div>
+        <div class="arch-node-detail">
+          IDW multi-node (min 3)<br>
+          TdoaSolver aggregation<br>
+          MonteCarloPropagator<br>
+          1000-sample EKF-seeded<br>
+          TrackManager
+        </div>
+      </div>
+      <div class="arch-node amber-accent">
+        <div class="arch-node-label">Layer 3 — Detection</div>
+        <div class="arch-node-title">SentinelPipelineV2</div>
+        <div class="arch-node-detail">
+          Acoustic classification<br>
+          RF correlation<br>
+          Terminal phase FSM<br>
+          CoordinateRegistry<br>
+          CircuitBreaker
+        </div>
+      </div>
+      <div class="arch-node">
+        <div class="arch-node-label">Layer 4 — Effectors</div>
+        <div class="arch-node-title">Command Layer</div>
+        <div class="arch-node-detail">
+          PtzSlaveOutput 100Hz<br>
+          JammerActivation<br>
+          900MHz + GPS L1<br>
+          PhysicalIntercept<br>
+          SkyNet R5 stream
+        </div>
+      </div>
+    </div>
+
+    <!-- ARROW 2 -->
+    <div class="arch-arrow">
+      <div style="text-align:center">
+        <div style="color:var(--cyan);font-size:20px;">→</div>
+        <div style="font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono';margin-top:4px;">SSE /<br>REST</div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="arch-column">
+      <div class="arch-column-header">Dashboard + Output</div>
+      <div class="arch-node green-accent">
+        <div class="arch-node-label">Layer 5 — UI</div>
+        <div class="arch-node-title">DemoDashboard</div>
+        <div class="arch-node-detail">
+          Next.js live tracks<br>
+          Heatmap + alerts<br>
+          Terminal phase indicator<br>
+          Jammer status<br>
+          PTZ video feed
+        </div>
+      </div>
+      <div class="arch-node cyan-accent">
+        <div class="arch-node-label">Layer 4 — Output</div>
+        <div class="arch-node-title">CursorOfTruth</div>
+        <div class="arch-node-detail">
+          BRAVE1 NATO format<br>
+          CoT XML<br>
+          LocationCoarsener<br>
+          ±50m GDPR privacy<br>
+          PII-stripped relay
+        </div>
+      </div>
+      <div class="arch-node">
+        <div class="arch-node-label">Layer 1 — NATS Streams</div>
+        <div class="arch-node-title">10 JetStream Topics</div>
+        <div class="arch-node-detail">
+          ACOUSTIC_EVENTS<br>
+          TRACK_UPDATES<br>
+          TERMINAL_PHASE<br>
+          JAMMER_COMMANDS<br>
+          SKYNET_ACTIVATION R5
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: CAPABILITIES                                      -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="section-capabilities" class="section">
+  <div class="section-title">Section 02</div>
+  <div class="section-heading">W7 Capabilities — What Was Built</div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value green">1619</div>
+      <div class="stat-label">Tests Passing</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">106</div>
+      <div class="stat-label">Test Files</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">96.19%</div>
+      <div class="stat-label">Stmt Coverage</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">90.46%</div>
+      <div class="stat-label">Branch Coverage</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value green">W7+SQA</div>
+      <div class="stat-label">Embedding Done</div>
+    </div>
+  </div>
+
+  <div class="cap-grid">
+    <div class="cap-card">
+      <div class="cap-card-title">🎵 Acoustic Intelligence</div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">16kHz pipeline migration</div><div class="cap-item-sub">FR-W7-01 — INDIGO aligned</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Gerbera ICE 2-stroke profile</div><div class="cap-item-sub">167–217 Hz, f0=192Hz</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Shahed-238 turbine profile</div><div class="cap-item-sub">3000–8000 Hz jet engine band</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Shahed-131 piston profile</div><div class="cap-item-sub">Higher RPM than Shahed-136</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">SampleRateMismatchError guard</div><div class="cap-item-sub">EC3 rejects 22050Hz at boundary</div></div></div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-card-title">📡 RF Fingerprinting</div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">ELRS 900MHz burst detection</div><div class="cap-item-sub">Foxeer TRX1003 FPV link</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">rfSilent flag 2s window</div><div class="cap-item-sub">200ms LOSS_WINDOW_MS</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">PacketLossRate computation</div><div class="cap-item-sub">75% threshold → silent</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Out-of-band rejection</div><div class="cap-item-sub">No false-safety on noise</div></div></div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-card-title">🎯 Terminal Phase Detection</div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">4-indicator compound FSM</div><div class="cap-item-sub">CRUISE→APPROACH→TERMINAL→IMPACT</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Speed + course + altitude + RF</div><div class="cap-item-sub">All 4 must trigger</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">BearingTriangulator WLS</div><div class="cap-item-sub">GPS-jam resilient bearing fix</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">CoordinateRegistry injection</div><div class="cap-item-sub">Replaces hardcoded 51.5/4.9</div></div></div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-card-title">⚡ Hardware Effectors</div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">PTZ auto-slave ONVIF</div><div class="cap-item-sub">100Hz, 500ms rate limit</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">JammerActivation 900MHz+GPS</div><div class="cap-item-sub">ACK timeout, idempotency key</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">SkyNet net-gun intercept</div><div class="cap-item-sub">SKYNET_ACTIVATION R5 stream</div></div></div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-card-title">🔬 SQA Embedding (NEW)</div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">BVA — 20 boundary tests</div><div class="cap-item-sub">FR-W7-15: 3 acoustic boundaries</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">OO lifecycle — 42 tests</div><div class="cap-item-sub">FR-W7-17: TPD, FPG, APL</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Learning-safety — 10 tests</div><div class="cap-item-sub">FR-W7-18: IEC 61508 gate</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Fail-operational — 21 tests</div><div class="cap-item-sub">FR-W7-19: no silent all-clear</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">BDD — 4 Gherkin scenarios</div><div class="cap-item-sub">FR-W7-BDD: turbine+piston+RF</div></div></div>
+    </div>
+    <div class="cap-card">
+      <div class="cap-card-title">🖥 Demo Dashboard</div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Live track list</div><div class="cap-item-sub">getRecentTracks() 60s window</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Heatmap data API</div><div class="cap-item-sub">[lat,lon,weight] tuples</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">SSE real-time events</div><div class="cap-item-sub">track_update | alert | status</div></div></div>
+      <div class="cap-item"><span class="cap-item-check">✓</span><div><div class="cap-item-text">Operator auth gate</div><div class="cap-item-sub">Token validation layer</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: 4D QA                                            -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="section-qa" class="section">
+  <div class="section-title">Section 03</div>
+  <div class="section-heading">4D QA Framework — TDD + BDD + PBT + MBT</div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value green">1619</div>
+      <div class="stat-label">Total Tests</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">4</div>
+      <div class="stat-label">QA Dimensions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">P0/P1/P2</div>
+      <div class="stat-label">Regression Tiers</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">~30s</div>
+      <div class="stat-label">Full Suite Runtime</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value amber">0%</div>
+      <div class="stat-label">Mutation Score</div>
+    </div>
+  </div>
+
+  <div class="qa-grid">
+    <div class="qa-card">
+      <div class="qa-dimension">TDD — Test-Driven Development</div>
+      <div class="qa-desc">Vitest + RTL. FR-named describe blocks. Unit + component + integration pyramid.</div>
+      <div class="qa-items">
+        <div class="qa-item"><span class="qa-item-name">Unit tests (src modules)</span><span class="qa-item-count green">1200+</span></div>
+        <div class="qa-item"><span class="qa-item-name">Component tests (dashboard)</span><span class="qa-item-count">120+</span></div>
+        <div class="qa-item"><span class="qa-item-name">Integration tests (pipeline)</span><span class="qa-item-count">80+</span></div>
+        <div class="qa-item"><span class="qa-item-name">BVA boundary tests (FR-W7-15)</span><span class="qa-item-count">49</span></div>
+        <div class="qa-item"><span class="qa-item-name">OO lifecycle (FR-W7-17)</span><span class="qa-item-count">42</span></div>
+        <div class="qa-item"><span class="qa-item-name">Fail-operational (FR-W7-19)</span><span class="qa-item-count">21</span></div>
+        <div class="qa-item"><span class="qa-item-name">Learning-safety (FR-W7-18)</span><span class="qa-item-count">10</span></div>
+      </div>
+    </div>
+    <div class="qa-card">
+      <div class="qa-dimension">BDD — Behavior-Driven Development</div>
+      <div class="qa-desc">Gherkin-in-Vitest. GIVEN/WHEN/THEN nested describe/it. Operator-facing scenarios.</div>
+      <div class="qa-items">
+        <div class="qa-item"><span class="qa-item-name">Shahed-238 turbine detection journey</span><span class="qa-item-count">JRN-W7-01</span></div>
+        <div class="qa-item"><span class="qa-item-name">Gerbera narrow-band acoustic</span><span class="qa-item-count">JRN-W7-02</span></div>
+        <div class="qa-item"><span class="qa-item-name">ELRS RF silence correlation</span><span class="qa-item-count">JRN-W7-03</span></div>
+        <div class="qa-item"><span class="qa-item-name">System recovery from RF silence</span><span class="qa-item-count">JRN-W7-04</span></div>
+        <div class="qa-item"><span class="qa-item-name">Target for W8 (with INDIGO operators)</span><span class="qa-item-count amber">15+</span></div>
+      </div>
+    </div>
+    <div class="qa-card">
+      <div class="qa-dimension">PBT — Property-Based Testing</div>
+      <div class="qa-desc">Metamorphic oracles. Invariant properties. Stochastic tolerance bands.</div>
+      <div class="qa-items">
+        <div class="qa-item"><span class="qa-item-name">Canary oracle tests</span><span class="qa-item-count">tests/adversarial/</span></div>
+        <div class="qa-item"><span class="qa-item-name">Difference oracle</span><span class="qa-item-count">tests/adversarial/</span></div>
+        <div class="qa-item"><span class="qa-item-name">Metamorphic (frequency invariance)</span><span class="qa-item-count">tests/adversarial/</span></div>
+        <div class="qa-item"><span class="qa-item-name">Non-determinism ±2σ bands</span><span class="qa-item-count">AI testing layer</span></div>
+        <div class="qa-item"><span class="qa-item-name">Data drift KL divergence</span><span class="qa-item-count">AI testing layer</span></div>
+      </div>
+    </div>
+    <div class="qa-card">
+      <div class="qa-dimension">MBT — Model-Based Testing</div>
+      <div class="qa-desc">FSM state models. All transitions. All states. All entry/exit conditions.</div>
+      <div class="qa-items">
+        <div class="qa-item"><span class="qa-item-name">TerminalPhaseDetector FSM (4 states)</span><span class="qa-item-count">18 tests</span></div>
+        <div class="qa-item"><span class="qa-item-name">CalibrationStateMachine (5-step)</span><span class="qa-item-count">12 tests</span></div>
+        <div class="qa-item"><span class="qa-item-name">CircuitBreaker (open/half/closed)</span><span class="qa-item-count">10 tests</span></div>
+        <div class="qa-item"><span class="qa-item-name">NatsClient reconnect FSM</span><span class="qa-item-count">8 tests</span></div>
+        <div class="qa-item"><span class="qa-item-name">BatteryOptimizer 4-mode FSM</span><span class="qa-item-count">8 tests</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regression tiers -->
+  <div style="background:var(--navy-3);border:1px solid var(--border);border-radius:8px;padding:24px;">
+    <div style="font-size:13px;font-weight:700;color:var(--cyan);margin-bottom:16px;">P0 / P1 / P2 Regression Tiers</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+      <div style="background:var(--navy-2);border-radius:6px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--green);margin-bottom:8px;">P0 — Smoke (every commit)</div>
+        <div style="font-size:12px;color:var(--text-dim);">tests/unit/** + tests/acoustic/** + tests/bdd/**</div>
+        <div style="font-family:'JetBrains Mono';font-size:13px;color:#e8f4ff;margin-top:8px;">~250 tests · &lt;5s</div>
+      </div>
+      <div style="background:var(--navy-2);border-radius:6px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--cyan);margin-bottom:8px;">P1 — Core (every PR)</div>
+        <div style="font-size:12px;color:var(--text-dim);">+ detection, ml, integration, fusion, rf, prediction, output</div>
+        <div style="font-family:'JetBrains Mono';font-size:13px;color:#e8f4ff;margin-top:8px;">~600 tests · ~10s</div>
+      </div>
+      <div style="background:var(--navy-2);border-radius:6px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--amber);margin-bottom:8px;">P2 — Full (nightly)</div>
+        <div style="font-size:12px;color:var(--text-dim);">tests/**/*.test.ts — complete suite</div>
+        <div style="font-family:'JetBrains Mono';font-size:13px;color:#e8f4ff;margin-top:8px;">1619 tests · ~30s</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: MIND-THE-GAP                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="section-mindgap" class="section">
+  <div class="section-title">Section 04</div>
+  <div class="section-heading">Mind-the-Gap — 19/19 Checks Passing</div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value green">19/19</div>
+      <div class="stat-label">Checks Passing</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">1–8</div>
+      <div class="stat-label">TDD / Code Gates</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">9–14</div>
+      <div class="stat-label">FDRP Dimensions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value green">15–19</div>
+      <div class="stat-label">SQA Book Gates (NEW)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value amber">0</div>
+      <div class="stat-label">Failing Checks</div>
+    </div>
+  </div>
+
+  <div class="mtg-grid">
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 01</div>
+      <div class="mtg-name">Test Suite Green</div>
+      <div class="mtg-status pass">✓ 1619/1619 PASS</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 02</div>
+      <div class="mtg-name">Coverage ≥80%</div>
+      <div class="mtg-status pass">✓ 96.19% stmt</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 03</div>
+      <div class="mtg-name">TypeScript Build</div>
+      <div class="mtg-status pass">✓ 0 errors</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 04</div>
+      <div class="mtg-name">FR-Named Tests</div>
+      <div class="mtg-status pass">✓ all compliant</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 05</div>
+      <div class="mtg-name">Journey Tests</div>
+      <div class="mtg-status pass">✓ ≥3 journeys</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 06</div>
+      <div class="mtg-name">Branch Coverage ≥80%</div>
+      <div class="mtg-status pass">✓ 90.46% branch</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 07</div>
+      <div class="mtg-name">Docs Complete</div>
+      <div class="mtg-status pass">✓ 21 docs W7</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 08</div>
+      <div class="mtg-name">CotRelay Coverage</div>
+      <div class="mtg-status pass">✓ &gt;0% relay cov</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 09</div>
+      <div class="mtg-name">Detection Accuracy</div>
+      <div class="mtg-status pass">✓ 16kHz aligned</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 10</div>
+      <div class="mtg-name">Privacy Architecture</div>
+      <div class="mtg-status pass">✓ ±50m GDPR</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 11</div>
+      <div class="mtg-name">Resilience Gates</div>
+      <div class="mtg-status pass">✓ circuit breaker</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 12</div>
+      <div class="mtg-name">Relay Coverage</div>
+      <div class="mtg-status pass">✓ P2 full run</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 13</div>
+      <div class="mtg-name">Security Posture</div>
+      <div class="mtg-status pass">✓ no critical gaps</div>
+    </div>
+    <div class="mtg-card pass">
+      <div class="mtg-num">CHECK 14</div>
+      <div class="mtg-name">Operational Readiness</div>
+      <div class="mtg-status pass">✓ dashboard live</div>
+    </div>
+    <div class="mtg-card pass" style="border-left-color:var(--cyan);">
+      <div class="mtg-num">CHECK 15 — NEW [QA-ORACLE]</div>
+      <div class="mtg-name">Oracle / Recall Tests</div>
+      <div class="mtg-status pass">✓ ≥3 oracle tests</div>
+    </div>
+    <div class="mtg-card pass" style="border-left-color:var(--cyan);">
+      <div class="mtg-num">CHECK 16 — NEW [QA-MUTATION]</div>
+      <div class="mtg-name">Mutation Config</div>
+      <div class="mtg-status pass">✓ stryker.config.json</div>
+    </div>
+    <div class="mtg-card pass" style="border-left-color:var(--cyan);">
+      <div class="mtg-num">CHECK 17 — NEW [QA-TGA]</div>
+      <div class="mtg-name">Critical Module TGA</div>
+      <div class="mtg-status pass">✓ 4 modules covered</div>
+    </div>
+    <div class="mtg-card pass" style="border-left-color:var(--cyan);">
+      <div class="mtg-num">CHECK 18 — NEW [QA-LEARNGATE]</div>
+      <div class="mtg-name">Learning-Safety Tests</div>
+      <div class="mtg-status pass">✓ IEC 61508 gate</div>
+    </div>
+    <div class="mtg-card pass" style="border-left-color:var(--cyan);">
+      <div class="mtg-num">CHECK 19 — NEW [QA-FAILOP]</div>
+      <div class="mtg-name">Fail-Operational Tests</div>
+      <div class="mtg-status pass">✓ 21 fail-op tests</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 5: FDRP                                             -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="section-fdrp" class="section">
+  <div class="section-title">Section 05</div>
+  <div class="section-heading">FDRP + VIRUSI Report — W1 through W7 Final</div>
+
+  <div class="fdrp-layout">
+    <!-- RADAR SVG -->
+    <div class="radar-container">
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:20px;">VIRUSI Radar — W7 Final</div>
+      <svg width="320" height="320" viewBox="-160 -160 320 320">
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <!-- grid rings -->
+        <circle cx="0" cy="0" r="130" fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="1"/>
+        <circle cx="0" cy="0" r="104" fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="1"/>
+        <circle cx="0" cy="0" r="78"  fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="1"/>
+        <circle cx="0" cy="0" r="52"  fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="1"/>
+        <circle cx="0" cy="0" r="26"  fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="1"/>
+        <!-- axes: 9 dimensions, evenly spaced -->
+        <!-- 0:Detection(top) 1:Privacy 2:Resilience 3:TestArch 4:ArchComplete 5:Security 6:OpReadiness 7:INDIGO 8:SQA -->
+        <line x1="0" y1="-130" x2="0" y2="0"        stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <line x1="85" y1="-97" x2="0" y2="0"         stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <line x1="124" y1="-38" x2="0" y2="0"        stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <line x1="110" y1="60"  x2="0" y2="0"        stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <line x1="49"  y1="119" x2="0" y2="0"        stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <line x1="-49" y1="119" x2="0" y2="0"        stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <line x1="-110" y1="60"  x2="0" y2="0"       stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <line x1="-124" y1="-38" x2="0" y2="0"       stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <line x1="-85" y1="-97" x2="0" y2="0"        stroke="rgba(0,212,255,0.15)" stroke-width="1"/>
+        <!-- W6 polygon (scores: 3.5,8.5,7.0,9.0,6.5,6.3,3.0,6.5,—) -->
+        <!-- scaled to radius 130 max (score 10) -->
+        <polygon
+          points="0,-45.5 88,-100 91,-27.3 117,64 42,103 -41,103 -93,50 -128,-39 -55,-63"
+          fill="rgba(0,212,255,0.06)" stroke="rgba(0,212,255,0.3)" stroke-width="1.5" stroke-dasharray="4,3"
+        />
+        <!-- W7 final polygon (5.5,8.5,7.5,9.0,8.0,6.6,5.5,7.5,7.0) -->
+        <polygon
+          points="0,-71.5 110,-127 117,-35 117,64 54,131 -54,131 -110,60 -116,-35 -85,-97"
+          fill="rgba(0,212,255,0.12)" stroke="var(--cyan)" stroke-width="2" filter="url(#glow)"
+        />
+        <!-- dots -->
+        <circle cx="0"    cy="-71.5" r="5" fill="var(--cyan)"/>
+        <circle cx="110"  cy="-127"  r="5" fill="var(--green)"/>
+        <circle cx="117"  cy="-35"   r="5" fill="var(--cyan)"/>
+        <circle cx="117"  cy="64"    r="5" fill="var(--green)"/>
+        <circle cx="54"   cy="131"   r="5" fill="var(--cyan)"/>
+        <circle cx="-54"  cy="131"   r="5" fill="var(--cyan)"/>
+        <circle cx="-110" cy="60"    r="5" fill="var(--amber)"/>
+        <circle cx="-116" cy="-35"   r="5" fill="var(--cyan)"/>
+        <circle cx="-85"  cy="-97"   r="5" fill="var(--cyan)"/>
+        <!-- labels -->
+        <text x="0"    y="-140" text-anchor="middle" font-size="9" fill="var(--text-dim)" font-family="Inter">Detection</text>
+        <text x="135"  y="-107" text-anchor="start"  font-size="9" fill="var(--text-dim)" font-family="Inter">Privacy</text>
+        <text x="138"  y="-30"  text-anchor="start"  font-size="9" fill="var(--text-dim)" font-family="Inter">Resilience</text>
+        <text x="118"  y="74"   text-anchor="start"  font-size="9" fill="var(--text-dim)" font-family="Inter">Tests</text>
+        <text x="45"   y="148"  text-anchor="middle" font-size="9" fill="var(--text-dim)" font-family="Inter">Arch</text>
+        <text x="-45"  y="148"  text-anchor="middle" font-size="9" fill="var(--text-dim)" font-family="Inter">Security</text>
+        <text x="-135" y="74"   text-anchor="end"    font-size="9" fill="var(--text-dim)" font-family="Inter">OpReady</text>
+        <text x="-140" y="-30"  text-anchor="end"    font-size="9" fill="var(--text-dim)" font-family="Inter">INDIGO</text>
+        <text x="-90"  y="-107" text-anchor="end"    font-size="9" fill="var(--text-dim)" font-family="Inter">SQA</text>
+        <!-- score ring labels -->
+        <text x="4" y="-25"  font-size="8" fill="rgba(0,212,255,0.4)" font-family="JetBrains Mono">2</text>
+        <text x="4" y="-51"  font-size="8" fill="rgba(0,212,255,0.4)" font-family="JetBrains Mono">4</text>
+        <text x="4" y="-77"  font-size="8" fill="rgba(0,212,255,0.4)" font-family="JetBrains Mono">6</text>
+        <text x="4" y="-103" font-size="8" fill="rgba(0,212,255,0.4)" font-family="JetBrains Mono">8</text>
+        <text x="4" y="-129" font-size="8" fill="rgba(0,212,255,0.4)" font-family="JetBrains Mono">10</text>
+        <!-- legend -->
+        <line x1="-100" y1="148" x2="-80" y2="148" stroke="rgba(0,212,255,0.3)" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="-75" y="151" font-size="8" fill="rgba(0,212,255,0.5)" font-family="Inter">W6</text>
+        <line x1="-40" y1="148" x2="-20" y2="148" stroke="var(--cyan)" stroke-width="2"/>
+        <text x="-15" y="151" font-size="8" fill="var(--cyan)" font-family="Inter">W7 Final</text>
+      </svg>
+      <div style="font-family:'JetBrains Mono';font-size:18px;font-weight:700;color:var(--cyan);margin-top:12px;">Overall: 7.1 / 10</div>
+      <div style="font-size:11px;color:var(--text-dim);">Weighted average — 9 dimensions</div>
+    </div>
+
+    <!-- FDRP TABLE -->
+    <div class="fdrp-table-container">
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:16px;">Dimension Scores</div>
+      <table class="fdrp-table">
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>W6</th>
+            <th>W7 Final</th>
+            <th>Delta</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="dim-name">Detection Accuracy</div><div class="dim-verdict">AMBER — oracle recall gates missing</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">3.5</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">5.5</td>
+            <td><span class="delta-up">⬆ +2.0</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill amber" style="width:55%"></div></div><span class="score-num">5.5</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="dim-name">Privacy Architecture</div><div class="dim-verdict">GREEN — GDPR compliant</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">8.5</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">8.5</td>
+            <td><span class="delta-same">=</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill green" style="width:85%"></div></div><span class="score-num">8.5</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="dim-name">Resilience</div><div class="dim-verdict">AMBER — fail-op unit tests added</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">7.0</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">7.5</td>
+            <td><span class="delta-up">⬆ +0.5</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill green" style="width:75%"></div></div><span class="score-num">7.5</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="dim-name">Test Architecture</div><div class="dim-verdict">GREEN — 1619 tests, 19/19 checks</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">9.0</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">9.0</td>
+            <td><span class="delta-up">⬆ restored</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill green" style="width:90%"></div></div><span class="score-num">9.0</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="dim-name">Architecture Completeness</div><div class="dim-verdict">GREEN — all W7 modules delivered</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">6.5</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">8.0</td>
+            <td><span class="delta-up">⬆ +1.5</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill green" style="width:80%"></div></div><span class="score-num">8.0</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="dim-name">Security Posture (VIRUSI)</div><div class="dim-verdict">AMBER — no RBAC, UUID timing gap</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">6.3</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">6.6</td>
+            <td><span class="delta-up">⬆ +0.3</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill amber" style="width:66%"></div></div><span class="score-num">6.6</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="dim-name">Operational Readiness</div><div class="dim-verdict">AMBER — no field trial, no hardware</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">3.0</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">5.5</td>
+            <td><span class="delta-up">⬆ +2.5</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill amber" style="width:55%"></div></div><span class="score-num">5.5</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="dim-name">INDIGO Benchmark</div><div class="dim-verdict">GREEN — architecturally ahead</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">6.5</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">7.5</td>
+            <td><span class="delta-up">⬆ +1.0</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill green" style="width:75%"></div></div><span class="score-num">7.5</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="dim-name">SQA Process Maturity</div><div class="dim-verdict">AMBER → GREEN (BVA+OO+failop done)</div></td>
+            <td style="color:var(--text-dim);font-family:'JetBrains Mono'">—</td>
+            <td style="font-family:'JetBrains Mono';color:#e8f4ff">7.0</td>
+            <td><span class="delta-up">NEW</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill green" style="width:70%"></div></div><span class="score-num">7.0</span></div></td>
+          </tr>
+          <tr style="border-top:1px solid var(--border);">
+            <td><div style="font-weight:700;color:#e8f4ff">WEIGHTED AVERAGE</div></td>
+            <td style="font-family:'JetBrains Mono';color:var(--text-dim)">6.3</td>
+            <td style="font-family:'JetBrains Mono';font-weight:700;color:var(--cyan)">7.1</td>
+            <td><span class="delta-up">⬆ +0.8</span></td>
+            <td><div class="score-bar"><div class="score-track"><div class="score-fill" style="width:71%;background:var(--cyan);"></div></div><span class="score-num" style="color:var(--cyan)">7.1</span></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- P0 BLOCKERS -->
+  <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">P0 Blockers — Must Fix Before W8 Execute</div>
+  <div class="blocker-list">
+    <div class="blocker-card">
+      <div class="blocker-id">P0-1 · MUTATION</div>
+      <div class="blocker-name">Stryker mutation testing — configured but never run</div>
+      <div class="blocker-desc">FalsePositiveGuard + TerminalPhaseDetector adjacent to kinetic response (jammer, SkyNet). Zero mutation score. Target: ≥80% on both modules before W8 execute.</div>
+    </div>
+    <div class="blocker-card">
+      <div class="blocker-id">P0-2 · LEARN-GATE</div>
+      <div class="blocker-name">promoteModel() gate — implementation missing</div>
+      <div class="blocker-desc">trainEpoch() tested to not corrupt live inference (SAFETY-01–10 GREEN). But promoteModel() does not yet exist. German Ethics Commission ruling: self-learning must be isolated from safety-critical functions.</div>
+    </div>
+    <div class="blocker-card">
+      <div class="blocker-id">P0-3 · MC/DC</div>
+      <div class="blocker-name">TerminalPhaseDetector MC/DC — 4-condition gate incomplete</div>
+      <div class="blocker-desc">speed_increase AND RF_silence AND course_commitment AND altitude_descent. Branch coverage insufficient. DO-178C / SIL-2 equivalent requires each sub-condition to independently toggle the compound decision. Need 8-10 test pairs.</div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div>APEX-SENTINEL — W7 Final | 2026-03-26 | fratilanico/apex-sentinel</div>
+  <div>1619 tests · 106 files · 96.19% stmt · 90.46% branch · 7.1/10 FDRP</div>
+</div>
+
+<script>
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>
