@@ -2,7 +2,7 @@
 
 > Wave: W7 — Hardware Integration Layer + Data Pipeline Rectification + Terminal Phase Detection
 > Last updated: 2026-03-25
-> Baseline: 629 tests GREEN (W6 complete) | Target: 750+ tests | Coverage target: ≥80% all metrics
+> Baseline: 629 tests GREEN (W6 complete) | Target: 906+ tests | Coverage target: ≥80% all metrics + per-profile recall gates
 
 ---
 
@@ -34,8 +34,13 @@ The CI gate is strict: ALL 750+ tests must pass before merge. No `test.todo`, no
          │  (pure logic, no IO, no mocks)    │
          └──────────────────────────────────┘
 
-W7 new tests: 121+
-W7 cumulative: 629 + 121 = 750+
+         ┌──────────────────────────────────────────────────────┐
+    ML   │  ML-Specific Extensions (metamorphic, adversarial,   │
+         │  chaos, per-profile recall gates) — see §18–§21      │  156 tests
+         └──────────────────────────────────────────────────────┘
+
+W7 new tests: 277 (121 hardware/pipeline FRs + 156 ML extensions)
+W7 cumulative: 629 + 277 = 906+
 ```
 
 ---
@@ -54,7 +59,27 @@ W7 cumulative: 629 + 121 = 750+
 | `tests/fusion/FR-W7-08-physical-intercept-coordinator.test.ts` | FR-W7-08 | L2/L3 | 10 |
 | `tests/pipeline/FR-W7-09-tdoa-coordinate-injection.test.ts` | FR-W7-09 | L3 Integration | 8 |
 | `tests/dashboard/FR-W7-10-demo-dashboard.test.ts` | FR-W7-10 | L2/L3 | 7 |
-| **Total W7** | | | **121+** |
+| **Subtotal — hardware/pipeline FRs** | | | **121** |
+| `tests/helpers/synthetic-audio-factory.ts` | FR-W7-12/13 | Helper | — |
+| `tests/ml/consistency-oracle.test.ts` | FR-W7-12 | L1 ML | 18 |
+| `tests/ml/FR-W7-11-simpsons-paradox-audit.test.ts` | FR-W7-11 | L1 ML | 12 |
+| `tests/ml/FR-W7-12-metamorphic-relations.test.ts` | FR-W7-12 | L1 ML | 24 |
+| `tests/adversarial/AT-01-near-boundary-frequency.test.ts` | FR-W7-13 | L1 | 8 |
+| `tests/adversarial/AT-02-adversarial-bird-call.test.ts` | FR-W7-13 | L1 | 6 |
+| `tests/adversarial/AT-03-replay-attack.test.ts` | FR-W7-13 | L2 | 6 |
+| `tests/adversarial/AT-04-spectral-masking.test.ts` | FR-W7-13 | L1 | 8 |
+| `tests/adversarial/AT-05-sample-rate-confusion.test.ts` | FR-W7-13 | L1 | 6 |
+| `tests/adversarial/AT-06-model-boundary-probing.test.ts` | FR-W7-13 | L1 | 10 |
+| `tests/chaos/CE-01-node-failure-mid-triangulation.test.ts` | FR-W7-14 | L2/L3 | 8 |
+| `tests/chaos/CE-02-nats-partition.test.ts` | FR-W7-14 | L3 | 6 |
+| `tests/chaos/CE-03-clock-skew.test.ts` | FR-W7-14 | L2 | 8 |
+| `tests/chaos/CE-04-model-load-failure.test.ts` | FR-W7-14 | L2 | 6 |
+| `tests/chaos/CE-05-sample-rate-drift.test.ts` | FR-W7-14 | L2 | 6 |
+| `tests/chaos/CE-06-hardware-divergence-regression.test.ts` | FR-W7-14 | L2 | 8 |
+| `tests/chaos/CE-07-memory-pressure.test.ts` | FR-W7-14 | L2 | 6 |
+| `tests/chaos/CE-08-concept-drift-detection.test.ts` | FR-W7-14 | L2 | 10 |
+| **Subtotal — ML extensions** | | | **156** |
+| **Total W7** | | | **277** |
 
 ---
 
@@ -799,7 +824,24 @@ jobs:
 
       - name: Unit + Component + Integration tests
         run: npx vitest run --coverage
-        # Must pass: 750+ tests, ≥80% all coverage metrics
+        # Must pass: 906+ tests, ≥80% all coverage metrics
+
+      - name: Per-profile recall gates (FR-W7-11)
+        run: npx vitest run tests/ml/FR-W7-11-simpsons-paradox-audit.test.ts
+        # Must pass: shahed-238 recall>=0.97, shahed-136/131 recall>=0.95,
+        #            gerbera recall>=0.93, fpv-quad recall>=0.90
+
+      - name: Consistency oracle regression gate (FR-W7-12)
+        run: npx vitest run tests/ml/consistency-oracle.test.ts
+        # Must pass: no label flip, no confidence delta >0.05 vs snapshot
+
+      - name: Adversarial robustness gate (FR-W7-13)
+        run: npx vitest run tests/adversarial/
+        # Must pass: all 44 AT tests, no unhandled exceptions
+
+      - name: Chaos engineering gate (FR-W7-14)
+        run: npx vitest run tests/chaos/
+        # Must pass: all 58 CE tests, graceful degradation confirmed
 
       - name: No hardcoded coordinates check
         run: |
@@ -811,4 +853,164 @@ jobs:
 
 ---
 
-*End of TEST_STRATEGY.md — W7*
+## 18. ML-Specific Testing Extensions
+
+> Source: "Artificial Intelligence and Software Testing" (BCS, 2022)
+> Applied to APEX-SENTINEL W7 by REVIEWER 2, 2026-03-25
+
+### 18.1 Why Conventional Testing Is Insufficient for ML Components
+
+Standard branch coverage metrics cannot detect ML-specific failure modes:
+
+- A classifier achieving 99% accuracy by always predicting the majority class passes every conventional gate.
+- Oracle absence: for new threat profiles (gerbera, shahed-238) there is no pre-labelled ground truth usable in a unit test assertion.
+- Distribution shift: a model that works on training-distribution inputs silently degrades when field audio characteristics change.
+
+Three complementary ML testing strategies close these gaps:
+
+### 18.2 Metamorphic Testing
+
+Metamorphic testing replaces the missing oracle with testable input-output relations (Metamorphic Relations, MRs).
+
+**Priority MRs for W7:**
+
+| MR | Name | Transformation | Expected Relation |
+|---|---|---|---|
+| MR-01 | Noise Invariance | Add white noise at SNR=20dB | Same label; confidence non-increasing |
+| MR-03 | SNR Monotonicity | Decrease SNR 30→10dB | Confidence decreases monotonically |
+| MR-04 | Profile Separation | Gerbera vs shahed-238 inputs | Labels always differ |
+| MR-06 | Silence Oracle | Replace all samples with zeros | Zero detections, label='silence' |
+| MR-10 | Sample Rate Boundary | Pass 22050Hz audio as 16kHz | SampleRateMismatchError thrown |
+| MR-12 | Temporal Consistency | Consecutive 975ms windows | Labels stable across 5+ consecutive windows |
+
+Full MR catalogue (MR-02, MR-05, MR-07–MR-09, MR-11) documented in `docs/analysis/AI-TESTING-BOOK-IMPLEMENTATION.md §4`.
+
+**Test file:** `tests/ml/FR-W7-12-metamorphic-relations.test.ts` — 24 tests
+
+**Helper required:** `tests/helpers/synthetic-audio-factory.ts` — generates piston drone, turbine drone, silence, noisy variants for MR inputs.
+
+### 18.3 Consistency Oracle
+
+A snapshot-based regression oracle commits expected outputs for canonical synthetic inputs. On each CI run, any label flip or confidence delta > 0.05 fails the build.
+
+Snapshot file: `tests/helpers/consistency-oracle-snapshot.json`
+Test file: `tests/ml/consistency-oracle.test.ts` — 18 tests
+
+### 18.4 Per-Profile Recall Gates
+
+Coverage aggregate metrics are replaced by per-profile recall gates as primary CI quality indicators.
+
+| Profile | Recall Gate | FNR Ceiling | Notes |
+|---|---|---|---|
+| shahed-238 | ≥ 0.97 | ≤ 0.03 | Turbine = highest damage class, suppressionImmune |
+| shahed-136 | ≥ 0.95 | ≤ 0.05 | Primary loitering munition |
+| shahed-131 | ≥ 0.95 | ≤ 0.05 | Higher RPM piston variant |
+| gerbera | ≥ 0.93 | ≤ 0.07 | Distinct piston band |
+| fpv-quad | ≥ 0.90 | ≤ 0.10 | Lower damage class |
+
+Simpson's Paradox audit: per-subgroup (day/night/urban/rural) recall computed independently. Aggregate recall passing does not satisfy these gates.
+
+**Test file:** `tests/ml/FR-W7-11-simpsons-paradox-audit.test.ts` — 12 tests
+
+### 18.5 SpectralAnalysis energyBands Fix
+
+The turbine band is missing from W6 `SpectralAnalysis.energyBands`. This blocks FR-W7-02 AC-04. Required fix before execute phase:
+
+```typescript
+// Add to src/ml/spectral-analysis.ts ENERGY_BANDS:
+turbine: [3000, 8000],  // shahed-238 micro-turbine KJ66 class
+```
+
+### 18.6 FalsePositiveGuardV2 Interface
+
+shahed-238 must bypass FP suppression even at borderline confidence (FN cost is mission-critical).
+
+```typescript
+// Interface addition required in src/ml/false-positive-guard.ts:
+suppressionImmune: boolean;  // true for shahed-238 only
+```
+
+---
+
+## 19. Chaos Engineering Test Plan
+
+Chaos tests deliberately inject hardware, network, and operational failures to verify graceful degradation. All chaos tests use mocks — no real hardware or network calls.
+
+| CE # | Scenario | Assertion |
+|---|---|---|
+| CE-01 | Node drops mid-triangulation | BearingTriangulator continues with n-1 nodes, result marked DEGRADED |
+| CE-02 | NATS partition for 5s | Pipeline queues ≤100 events, delivers all on reconnect |
+| CE-03 | Node timestamp skew > 200ms | TdoaSolver flags DEGRADED, does not produce corrupted position |
+| CE-04 | ONNX model file missing/corrupt | EdgeDeployer falls back to YAMNetSurrogate, logs WARNING |
+| CE-05 | Audio input sample rate drifts from 16000 to 16050Hz | DatasetPipelineV2 raises DriftWarning |
+| CE-06 | RPi4 vs Jetson spectrogram divergence | L2 delta < 0.001 for canonical inputs |
+| CE-07 | Memory pressure on audio ring buffer | Oldest frames dropped cleanly, no OOM propagation |
+| CE-08 | Concept drift: KL divergence exceeds 0.15 | ConceptDriftDetector raises alert |
+
+**Test files:** `tests/chaos/CE-01-*.test.ts` through `CE-08-*.test.ts` — 58 tests total
+
+**ConceptDriftDetector** interface: `src/ml/drift-detector.ts` — monitors rolling KL divergence between current input distribution and training baseline. Alert threshold: 0.15 over 7-day window.
+
+**EdgeDeployer hardware regression gate** (CE-06): RPi4 and Jetson produce different floating-point results for ARM NEON vs CUDA spectrogram computation. The gate uses mocked deployers with pre-recorded outputs. Any L2 delta > 0.001 fails the build, forcing explicit acknowledgement of hardware divergence.
+
+---
+
+## 20. Adversarial Robustness Testing
+
+Adversarial tests probe the classifier with inputs designed to expose brittleness at decision boundaries and sensitivity to real-world interference.
+
+| AT # | Pattern | Threat | Expected Behaviour |
+|---|---|---|---|
+| AT-01 | Near-boundary frequency | Input at 1999Hz vs 2001Hz routing threshold | Correct branch assignment on both sides |
+| AT-02 | Adversarial bird call | Harmonics in 300–400Hz (Shahed-136 piston band) | Does NOT trigger CRITICAL alert |
+| AT-03 | Replay attack | Identical audio > 3 times in < 10s | FalsePositiveGuard suppresses after 2nd activation |
+| AT-04 | Spectral masking | High-amplitude noise at exact profile frequencies | Graceful confidence drop, not wrong label |
+| AT-05 | Sample rate confusion | 22050Hz audio passed as 16kHz | SampleRateMismatchError before classifier |
+| AT-06 | Boundary probing | Frequency sweep 1000–3000Hz | At most 1 label transition at 2000Hz |
+
+**Test files:** `tests/adversarial/AT-01-*.test.ts` through `AT-06-*.test.ts` — 44 tests total
+
+**Key rule:** No adversarial input may cause an unhandled exception. All failures must be typed errors (`SampleRateMismatchError`, `ClassificationDegradedError`) or graceful reduction in confidence — never a crash or silent wrong output.
+
+---
+
+## 21. Updated Coverage Gate Policy
+
+### Previous policy (W6)
+
+Single aggregate gate: ≥80% statements/branches/functions/lines.
+
+### W7 policy (updated)
+
+Two-tier gate. BOTH must pass for merge:
+
+**Tier 1 — Aggregate coverage (unchanged):**
+```
+statements: 80%
+branches:   80%
+functions:  80%
+lines:      80%
+```
+
+**Tier 2 — Per-profile recall gates (NEW, FR-W7-11):**
+```
+shahed-238:  recall >= 0.97  (FNR <= 0.03)
+shahed-136:  recall >= 0.95  (FNR <= 0.05)
+shahed-131:  recall >= 0.95  (FNR <= 0.05)
+gerbera:     recall >= 0.93  (FNR <= 0.07)
+fpv-quad:    recall >= 0.90  (FNR <= 0.10)
+```
+
+**Tier 3 — Oracle gates (NEW, FR-W7-12):**
+```
+Consistency oracle: zero label regressions vs committed snapshot
+MR-06 (silence):    zero detections on silence input (hard gate, no tolerance)
+```
+
+Failing Tier 1 while passing Tier 2/3 is a build failure. Failing Tier 2 while passing Tier 1 is also a build failure. Both tiers are required.
+
+The rationale: aggregate 80% coverage on a classifier that always predicts `fpv-quad` would pass Tier 1 but fail Tier 2 (shahed-238 recall = 0). Tier 2 makes this failure visible in CI before it reaches the field.
+
+---
+
+*End of TEST_STRATEGY.md — W7 (updated with AI testing book extensions)*

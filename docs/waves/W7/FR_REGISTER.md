@@ -13,8 +13,8 @@
 | W4 | 5 | DONE | 70 |
 | W5 | 6 | DONE | 164 |
 | W6 | 10 | DONE | 145 |
-| W7 | 10 | PLANNED | 228 (est.) |
-| **TOTAL** | **51** | | **~857** |
+| W7 | 14 | PLANNED | 277 (est.) |
+| **TOTAL** | **55** | | **~906** |
 
 ---
 
@@ -115,6 +115,10 @@
 | FR-W7-08 | PhysicalInterceptCoordinator | W7 | PLANNED | `__tests__/output/physical-intercept-coordinator.test.ts` | 8 | P1 |
 | FR-W7-09 | SentinelPipelineV2 (TdoaSolver injection) | W7 | PLANNED | `__tests__/integration/sentinel-pipeline-v2.test.ts` | 6 | P0 |
 | FR-W7-10 | DemoDashboard | W7 | PLANNED | `__tests__/dashboard/demo-dashboard.test.ts` | 7 | P0 |
+| FR-W7-11 | Per-Profile Metrics Gate (Simpson's Paradox Prevention) | W7 | PLANNED | `tests/ml/FR-W7-11-simpsons-paradox-audit.test.ts` | 10 | P0 |
+| FR-W7-12 | Metamorphic Relations Test Suite | W7 | PLANNED | `tests/ml/FR-W7-12-metamorphic-relations.test.ts` + `tests/ml/consistency-oracle.test.ts` | 10 | P0 |
+| FR-W7-13 | Adversarial Robustness Suite | W7 | PLANNED | `tests/adversarial/AT-01-*.test.ts` through `AT-06-*.test.ts` | 7 | P1 |
+| FR-W7-14 | Chaos Engineering Gates | W7 | PLANNED | `tests/chaos/CE-01-*.test.ts` through `CE-08-*.test.ts` | 8 | P1 |
 
 ---
 
@@ -283,4 +287,108 @@
 
 ---
 
-*FR Register version 7.0.0 — W1-W7 complete — 51 FRs total*
+### FR-W7-11 — Per-Profile Metrics Gate (Simpson's Paradox Prevention)
+
+**Rationale:** Aggregate 80% recall on a balanced test set does not guarantee per-class adequacy. The Simpson's Paradox failure mode: a classifier achieving 97% aggregate recall may have 60% recall on shahed-238 (masked by 99% on easier classes). For a threat-detection system, a missed shahed-238 detection = mission failure. Per-profile recall gates in CI are the only reliable fix.
+
+**Acceptance Criteria:**
+
+- AC-01: CI pipeline computes per-profile precision and recall on W7 evaluation set before merge gate
+- AC-02: shahed-238 recall >= 0.97 (FNR <= 0.03) — build fails if not met
+- AC-03: shahed-136 recall >= 0.95 (FNR <= 0.05) — build fails if not met
+- AC-04: shahed-131 recall >= 0.95 (FNR <= 0.05) — build fails if not met
+- AC-05: gerbera recall >= 0.93 (FNR <= 0.07) — build fails if not met
+- AC-06: fpv-quad recall >= 0.90 (FNR <= 0.10) — build fails if not met
+- AC-07: Simpson's Paradox audit: per-subgroup (day/night/urban/rural) recall computed independently; all subgroups must meet AC-02 through AC-06
+- AC-08: Dataset datasheet (Gebru et al., 7 mandatory fields) present and complete for all W7 training data; absent datasheet = CI failure
+- AC-09: `FalsePositiveGuardV2` implements `suppressionImmune: boolean` flag; shahed-238 sets this to `true` (FN cost asymmetry)
+- AC-10: Wild Hornets dataset contains >= 3000 field recordings at 16kHz in training corpus
+
+**Test file:** `tests/ml/FR-W7-11-simpsons-paradox-audit.test.ts`
+**Test count:** 12
+
+---
+
+### FR-W7-12 — Metamorphic Relations Test Suite
+
+**Rationale:** For new threat profiles (gerbera, shahed-131, shahed-238) there is no pre-labelled ground truth corpus usable in unit test assertions — the oracle problem. Metamorphic testing provides oracle-free verification by asserting relations between input transformations and their classification outputs, rather than asserting specific output values. This closes the oracle gap identified for FR-W7-02, FR-W7-07, and FR-W7-09.
+
+**Acceptance Criteria:**
+
+- AC-01: MR-01 (noise invariance): adding white noise at SNR >= 20dB preserves label; confidence is non-increasing
+- AC-02: MR-03 (SNR monotonicity): as SNR decreases from 30dB to 10dB, confidence decreases monotonically
+- AC-03: MR-04 (profile separation): gerbera (200–600Hz piston) and shahed-238 (3000–8000Hz turbine) never receive identical labels
+- AC-04: MR-06 (silence oracle): all-zero input (silence) always returns zero detections and label='silence' — hard gate, no tolerance
+- AC-05: MR-10 (sample rate boundary): audio at 22050Hz passed as 16kHz raises `SampleRateMismatchError` before reaching any classifier
+- AC-06: MR-12 (temporal consistency): classification label stable across 5 consecutive 975ms windows of continuous drone recording (at most 1 label change permitted)
+- AC-07: Secondary MRs (MR-02, MR-05, MR-07, MR-08, MR-09, MR-11) implemented and passing
+- AC-08: `ConsistencyOracle` snapshot committed to repo at `tests/helpers/consistency-oracle-snapshot.json`; any CI run with label regression or confidence delta > 0.05 vs snapshot fails the build
+- AC-09: `SyntheticAudioFactory` helper class available at `tests/helpers/synthetic-audio-factory.ts` with `pistonDrone()`, `turbineDrone()`, `silence()`, `addNoise()`, `mix()`, `resample()` methods
+- AC-10: All MR and oracle tests use FR-W7-12-prefixed describe blocks per naming convention
+
+**Test files:**
+- `tests/ml/FR-W7-12-metamorphic-relations.test.ts` — 24 tests
+- `tests/ml/consistency-oracle.test.ts` — 18 tests
+
+**Total:** 42 tests
+
+---
+
+### FR-W7-13 — Adversarial Robustness Suite
+
+**Rationale:** Real-world acoustic environments contain adversarial-like inputs: birds with harmonics near piston fundamentals (300–400Hz), urban machinery overlapping Shahed frequency bands, deliberate acoustic spoofing. The system must suppress these inputs without crashing or triggering false CRITICAL alerts. The classifier must not be brittle at the 2000Hz turbine/piston routing boundary. No adversarial input may cause an unhandled exception.
+
+**Acceptance Criteria:**
+
+- AC-01: AT-01 (boundary frequency): inputs at exactly 1999Hz and 2001Hz both correctly route to piston and turbine branches respectively
+- AC-02: AT-02 (bird call): bird calls with harmonic content in 300–400Hz band do not trigger CRITICAL alert level; confidence suppressed below 0.85 threshold
+- AC-03: AT-03 (replay attack): identical audio segment submitted > 3 times within a 10-second window is suppressed by `FalsePositiveGuard` after the 2nd occurrence; `suppressedReason: 'replay-detected'`
+- AC-04: AT-04 (spectral masking): when target profile frequencies are masked by high-amplitude noise, classifier returns graceful confidence drop (not incorrect label assignment)
+- AC-05: AT-05 (sample rate confusion): audio at 22050Hz accepted as input raises `SampleRateMismatchError` — caught before spectrogram computation, never misclassified
+- AC-06: AT-06 (boundary probing): continuous frequency sweep from 1000Hz to 3000Hz produces at most 1 label transition, occurring within ±50Hz of the 2000Hz boundary
+- AC-07: No adversarial test input in AT-01 through AT-06 causes an unhandled exception; all error paths use typed errors
+
+**Test files:**
+- `tests/adversarial/AT-01-near-boundary-frequency.test.ts` — 8 tests
+- `tests/adversarial/AT-02-adversarial-bird-call.test.ts` — 6 tests
+- `tests/adversarial/AT-03-replay-attack.test.ts` — 6 tests
+- `tests/adversarial/AT-04-spectral-masking.test.ts` — 8 tests
+- `tests/adversarial/AT-05-sample-rate-confusion.test.ts` — 6 tests
+- `tests/adversarial/AT-06-model-boundary-probing.test.ts` — 10 tests
+
+**Total:** 44 tests
+
+---
+
+### FR-W7-14 — Chaos Engineering Gates
+
+**Rationale:** Field hardware fails. NATS connections partition. ADC clocks drift. ONNX model files corrupt during OTA update. These are not edge cases — they are scheduled operational realities in a deployed sensor network. The system must degrade to a lower capability mode rather than crash. Chaos engineering tests inject these failure modes deliberately and assert on graceful degradation behaviour. All tests use mocks — no real hardware.
+
+**Acceptance Criteria:**
+
+- AC-01: CE-01 (node failure mid-triangulation): when a bearing node drops mid-sequence, `BearingTriangulator` continues computation with remaining n-1 nodes and marks the result `degraded: true`; does not throw
+- AC-02: CE-02 (NATS partition): pipeline queues up to 100 events during a simulated 5-second NATS partition; delivers all queued events in order on reconnect; no data loss
+- AC-03: CE-03 (clock skew): when node timestamps diverge by > 200ms, `TdoaSolver` sets `positionQuality: 'DEGRADED'` and does not produce a corrupted position estimate
+- AC-04: CE-04 (model load failure): when ONNX model file is absent or corrupt, `EdgeDeployer` falls back to `YAMNetSurrogate` and logs a WARNING; pipeline continues at reduced accuracy
+- AC-05: CE-05 (sample rate drift): when audio input sample rate drifts from 16000Hz to 16050Hz over 60 seconds (simulated ADC clock drift), `DatasetPipelineV2` detects the drift and raises `DriftWarning` — does not silently process drifted audio
+- AC-06: CE-06 (hardware divergence regression): spectrogram output from mocked RPi4 and Jetson deployers for identical input audio differs by < 0.001 L2 norm; any larger divergence fails the gate and forces explicit acknowledgement
+- AC-07: CE-07 (memory pressure): when audio ring buffer is at capacity, oldest frames are dropped cleanly in FIFO order; `BufferOverflowError` is caught and logged, not propagated to caller
+- AC-08: CE-08 (concept drift): `ConceptDriftDetector` raises a `DriftAlert` and publishes to configured alert channel when 7-day rolling KL divergence between current input embeddings and training distribution baseline exceeds 0.15
+
+**Test files:**
+- `tests/chaos/CE-01-node-failure-mid-triangulation.test.ts` — 8 tests
+- `tests/chaos/CE-02-nats-partition.test.ts` — 6 tests
+- `tests/chaos/CE-03-clock-skew.test.ts` — 8 tests
+- `tests/chaos/CE-04-model-load-failure.test.ts` — 6 tests
+- `tests/chaos/CE-05-sample-rate-drift.test.ts` — 6 tests
+- `tests/chaos/CE-06-hardware-divergence-regression.test.ts` — 8 tests
+- `tests/chaos/CE-07-memory-pressure.test.ts` — 6 tests
+- `tests/chaos/CE-08-concept-drift-detection.test.ts` — 10 tests
+
+**New source file required:** `src/ml/drift-detector.ts` — `ConceptDriftDetector` class with `ingest()`, `getKLDivergence()`, `isDriftDetected()`, `getAlert()` interface.
+
+**Total:** 58 tests
+
+---
+
+*FR Register version 7.1.0 — W1-W7 + AI testing extensions — 55 FRs total — 2026-03-25*
