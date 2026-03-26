@@ -1,7 +1,7 @@
 # APEX-SENTINEL W8 — Feature Requirements Register
 
 > Wave: W8 | Theme: Field Trial Readiness + Operator UX
-> Status: PLAN | Updated: 2026-03-26
+> Status: EXECUTE | Updated: 2026-03-26
 
 ---
 
@@ -10,8 +10,8 @@
 | Wave | FR Count | Status | Test Count |
 |------|----------|--------|------------|
 | W1-W7 | 55 | DONE | 1619 |
-| W8 | 12 | PLANNED | 200 (target) |
-| **TOTAL** | **67** | | **~1820** |
+| W8 | 12 | 10/12 DONE (W8.2 deferred) | 241 |
+| **TOTAL** | **67** | | **1860** |
 
 ---
 
@@ -19,18 +19,18 @@
 
 | FR ID | Title | Status | Tests | Priority | Blocking |
 |-------|-------|--------|-------|----------|---------|
-| FR-W8-01 | Per-Profile Recall Oracle Integration | PLANNED | 16 | P0 | export-model |
-| FR-W8-02 | Simpson's Paradox Consistency Oracle | PLANNED | 12 | P1 | W8-01 |
-| FR-W8-03 | PTZ Hardware Integration Test Suite | PLANNED | 8 | P1 | none |
-| FR-W8-04 | ELRS RF Field Validation | PLANNED | 10 | P1 | none |
-| FR-W8-05 | Mobile React Native UI | PLANNED | 35 | P2 | mobile/*.ts |
-| FR-W8-06 | Demo Dashboard Next.js Frontend | PLANNED | 25 | P2 | dashboard/api.ts |
-| FR-W8-07 | Multi-Threat Simultaneous Tracking | PLANNED | 20 | P1 | W8-01 |
-| FR-W8-08 | Firmware OTA Controller | PLANNED | 12 | P1 | none |
-| FR-W8-09 | Wild Hornets Augmentation Pipeline | PLANNED | 18 | P2 | none |
-| FR-W8-10 | Learning-Safety IEC 61508 Promotion Gate | PLANNED | 16 | P0 | W7 .todo() |
-| FR-W8-11 | Chaos Engineering Test Suite | PLANNED | 20 | P2 | none |
-| FR-W8-12 | Stryker Mutation Testing CI Integration | PLANNED | 0 | P2 | none |
+| FR-W8-01 | Per-Profile Recall Oracle Integration | DONE | 16 | P0 | export-model |
+| FR-W8-02 | Simpson's Paradox Consistency Oracle | DONE | 12 | P1 | W8-01 |
+| FR-W8-03 | PTZ Hardware Integration Test Suite | DONE | 8 | P1 | none |
+| FR-W8-04 | ELRS RF Field Validation | DONE | 10 | P1 | none |
+| FR-W8-05 | Mobile React Native UI | DEFERRED W8.2 | 0 | P2 | mobile/*.ts |
+| FR-W8-06 | Demo Dashboard Next.js Frontend | DEFERRED W8.2 | 0 | P2 | dashboard/api.ts |
+| FR-W8-07 | Multi-Threat Simultaneous Tracking | DONE | 20 | P1 | W8-01 |
+| FR-W8-08 | Firmware OTA Controller | DONE | 12 | P1 | none |
+| FR-W8-09 | Wild Hornets Augmentation Pipeline | DONE | 18 | P2 | none |
+| FR-W8-10 | Learning-Safety IEC 61508 Promotion Gate | DONE | 32 | P0 | W7 .todo() |
+| FR-W8-11 | Chaos Engineering Test Suite | DONE | 20 | P2 | none |
+| FR-W8-12 | Stryker Mutation Testing CI Integration | DONE | 0 | P2 | none |
 
 ---
 
