@@ -1,10 +1,14 @@
 // APEX-SENTINEL — Acoustic Profile Library (W7: Gerbera, Shahed-131, Shahed-238)
 // FR-W7-02 | src/ml/acoustic-profile-library.ts
+// W8: IEC 61508 SIL-2 setActiveModel() safety gate added
 //
 // Catalog of drone acoustic signatures.
 // W7 adds: Gerbera (piston 167-217Hz), Shahed-131 (piston 150-400Hz),
 //          Shahed-238 (jet turbine 3000-8000Hz).
 // INDIGO team confirmation + acoustic profile library source.
+
+import { isValidHandle } from './model-handle-registry.js';
+import type { ModelHandle } from './model-handle-registry.js';
 
 export interface DroneAcousticProfile {
   id: string;
@@ -24,6 +28,15 @@ export interface DroneAcousticProfile {
   detectionRangeKm: number;
   falsePositiveRisk: 'high' | 'medium' | 'low';
   countermeasureNotes: string;
+}
+
+export class SafetyGateViolationError extends Error {
+  constructor(message = 'SAFETY_GATE_VIOLATION: setActiveModel requires a valid ModelHandle issued by promoteModel()') {
+    super(message);
+    this.name = 'SafetyGateViolationError';
+    // Log violation for IEC 61508 audit trail
+    console.error(`[SAFETY_GATE_BYPASSED] ${message}`, new Error('Violation stack trace'));
+  }
 }
 
 export class DroneProfileNotFoundError extends Error {
@@ -209,4 +222,24 @@ export class AcousticProfileLibrary {
     }
     this.profiles.delete(droneTypeOrId);
   }
+
+  // ── W8: IEC 61508 SIL-2 Model Promotion Gate ─────────────────────────────
+  // setActiveModel() ONLY accepts handles issued by YAMNetFineTuner.promoteModel().
+  // Direct weight mutation without a registered handle throws SafetyGateViolationError.
+
+  setActiveModel(handle: unknown): void {
+    if (!isValidHandle(handle)) {
+      throw new SafetyGateViolationError();
+    }
+    // In current architecture, AcousticProfileLibrary uses frequency-range matching
+    // (no weight vector). The handle is validated and stored for audit purposes.
+    // When YAMNet inference weights are integrated, they will be sourced from handle.metrics.
+    this._activeModelHandle = handle as ModelHandle;
+  }
+
+  getActiveModelHandle(): ModelHandle | null {
+    return this._activeModelHandle;
+  }
+
+  private _activeModelHandle: ModelHandle | null = null;
 }

@@ -1,10 +1,20 @@
-// APEX-SENTINEL — W6 YAMNet Fine-tuner
+// APEX-SENTINEL — W6 YAMNet Fine-tuner (W8: IEC 61508 promotion gate added)
 // FR-W6-02 | src/ml/yamnnet-finetuner.ts
 //
 // Fine-tuning pipeline for YAMNet-512 on drone acoustic signatures.
 // Transfer learning: freeze 90% of base layers, retrain 10-class head.
 // Supports ONNX export for edge deployment.
 // Dependency-injected model backend for testability.
+//
+// W8 addition: promoteModel() — IEC 61508 SIL-2 gate before weights can affect inference.
+
+import {
+  type ModelMetrics,
+  type ModelHandle,
+  type PromotionResult,
+  registerHandle,
+  evaluateGate,
+} from './model-handle-registry.js';
 
 export interface TrainingConfig {
   sampleRate: number;        // 22050
@@ -116,5 +126,40 @@ export class YAMNetFineTuner {
 
   getMetrics(): TrainingMetrics[] {
     return [...this.metricsHistory];
+  }
+
+  // ── W8: IEC 61508 SIL-2 Promotion Gate ─────────────────────────────────────
+
+  async promoteModel(metrics: ModelMetrics, operatorId: string): Promise<PromotionResult> {
+    const { passed, gate, firstFailure } = evaluateGate(metrics);
+
+    if (!passed && firstFailure !== null) {
+      const actual = metrics[firstFailure as keyof ModelMetrics]?.recall ?? 0;
+      const threshold = gate[firstFailure]?.threshold ?? 0;
+      const gap = +(actual - threshold).toFixed(4);
+      return {
+        promoted: false,
+        reason: `${firstFailure}: recall ${actual} < threshold ${threshold} (gap: ${gap})`,
+        metrics,
+        gate,
+      };
+    }
+
+    const token = Symbol('promotion-token');
+    const modelHandle: ModelHandle = {
+      version: `yamnet-w8-${Date.now()}`,
+      promotedAt: new Date(),
+      operatorId,
+      metrics,
+      _token: token,
+    };
+    registerHandle(modelHandle);
+
+    return {
+      promoted: true,
+      modelHandle,
+      metrics,
+      gate,
+    };
   }
 }

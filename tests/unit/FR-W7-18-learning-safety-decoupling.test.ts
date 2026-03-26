@@ -176,28 +176,80 @@ describe('FR-W7-18: Learning-Safety Decoupling — IEC 61508 Gate', () => {
   // does not exist on YAMNetFineTuner, the tests below document the gap.
   // -------------------------------------------------------------------------
 
-  it.todo('SAFETY-GATE: promote gate must exist before train() can affect inference — YAMNetFineTuner must have a promoteModel() method');
+  // W8: IEC 61508 gates now implemented — converting todos to real tests
 
-  it.todo('SAFETY-GATE: promoteModel() must require evaluation metrics above threshold before accepting new weights');
-
-  it.todo('SAFETY-GATE: promoteModel() must be callable from outside YAMNetFineTuner (separation of training vs promotion authority)');
-
-  it.todo('SAFETY-GATE: AcousticProfileLibrary must accept promoted model handle via setActiveModel(promotedHandle) — not by direct weight mutation');
-
-  it.todo('SAFETY-GATE: if promote gate is bypassed (e.g. during testing), a SAFETY_GATE_BYPASSED warning must be logged');
-
-  // Document current architecture status
-  it('SAFETY-ARCH: YAMNetFineTuner does NOT currently expose a promoteModel() method — gap documented', () => {
-    // This is a living documentation test — it confirms the current state of the code.
-    // When promoteModel() is implemented, this test should be updated to assert its presence.
-    const hasPromoteMethod = typeof (tuner as unknown as Record<string, unknown>).promoteModel === 'function';
-    // DELIBERATE: We assert the gap exists so CI will catch when it is resolved
-    expect(hasPromoteMethod).toBe(false); // Remove this assertion when promoteModel() is implemented
+  it('SAFETY-GATE: promote gate must exist before train() can affect inference — YAMNetFineTuner must have a promoteModel() method', () => {
+    expect(typeof tuner.promoteModel).toBe('function');
   });
 
-  it('SAFETY-ARCH: YAMNetFineTuner does NOT currently expose a setActiveModel() method — gap documented', () => {
-    const hasSetActiveModel = typeof (tuner as unknown as Record<string, unknown>).setActiveModel === 'function';
-    expect(hasSetActiveModel).toBe(false); // Remove when setActiveModel() is implemented
+  it('SAFETY-GATE: promoteModel() must require evaluation metrics above threshold before accepting new weights', async () => {
+    const failingMetrics = {
+      shahed_136: { recall: 0.88, precision: 0.87, f1: 0.875, sampleCount: 80 },
+      shahed_131: { recall: 0.86, precision: 0.84, f1: 0.85, sampleCount: 75 },
+      shahed_238: { recall: 0.89, precision: 0.85, f1: 0.87, sampleCount: 60 }, // below 0.95
+      gerbera:    { recall: 0.93, precision: 0.89, f1: 0.91, sampleCount: 70 },
+      quad_rotor: { recall: 0.89, precision: 0.87, f1: 0.88, sampleCount: 100 },
+    };
+    const result = await tuner.promoteModel(failingMetrics, 'test-operator');
+    expect(result.promoted).toBe(false);
+    expect(result.reason).toContain('shahed_238');
+  });
+
+  it('SAFETY-GATE: promoteModel() must be callable from outside YAMNetFineTuner (separation of training vs promotion authority)', async () => {
+    const passingMetrics = {
+      shahed_136: { recall: 0.88, precision: 0.87, f1: 0.875, sampleCount: 80 },
+      shahed_131: { recall: 0.86, precision: 0.84, f1: 0.85, sampleCount: 75 },
+      shahed_238: { recall: 0.96, precision: 0.91, f1: 0.935, sampleCount: 60 },
+      gerbera:    { recall: 0.93, precision: 0.89, f1: 0.91, sampleCount: 70 },
+      quad_rotor: { recall: 0.89, precision: 0.87, f1: 0.88, sampleCount: 100 },
+    };
+    // Called from outside (separation of authority) — tuner instance is not needed
+    const result = await tuner.promoteModel(passingMetrics, 'external-authority');
+    expect(result.promoted).toBe(true);
+    expect(result.modelHandle).toBeDefined();
+    expect(result.modelHandle?.operatorId).toBe('external-authority');
+  });
+
+  it('SAFETY-GATE: AcousticProfileLibrary must accept promoted model handle via setActiveModel(promotedHandle) — not by direct weight mutation', async () => {
+    const passingMetrics = {
+      shahed_136: { recall: 0.88, precision: 0.87, f1: 0.875, sampleCount: 80 },
+      shahed_131: { recall: 0.86, precision: 0.84, f1: 0.85, sampleCount: 75 },
+      shahed_238: { recall: 0.96, precision: 0.91, f1: 0.935, sampleCount: 60 },
+      gerbera:    { recall: 0.93, precision: 0.89, f1: 0.91, sampleCount: 70 },
+      quad_rotor: { recall: 0.89, precision: 0.87, f1: 0.88, sampleCount: 100 },
+    };
+    const result = await tuner.promoteModel(passingMetrics, 'test-operator');
+    expect(result.promoted).toBe(true);
+    // setActiveModel MUST accept valid handle without throwing
+    expect(() => library.setActiveModel(result.modelHandle!)).not.toThrow();
+    // Direct weight mutation (no valid handle) MUST throw
+    expect(() => library.setActiveModel({ fake: 'object' })).toThrow('SAFETY_GATE_VIOLATION');
+  });
+
+  it('SAFETY-GATE: if promote gate is bypassed (e.g. during testing), a SAFETY_GATE_BYPASSED warning must be logged', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // Attempt bypass with invalid handle
+    try {
+      library.setActiveModel({ notAHandle: true });
+    } catch {
+      // expected
+    }
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('SAFETY_GATE_BYPASSED'),
+      expect.any(Error),
+    );
+    consoleSpy.mockRestore();
+  });
+
+  // Updated architecture status tests — promoteModel + setActiveModel now exist
+  it('SAFETY-ARCH: YAMNetFineTuner NOW exposes promoteModel() — W8 IEC 61508 gate implemented', () => {
+    const hasPromoteMethod = typeof tuner.promoteModel === 'function';
+    expect(hasPromoteMethod).toBe(true);
+  });
+
+  it('SAFETY-ARCH: AcousticProfileLibrary NOW exposes setActiveModel() — W8 IEC 61508 gate implemented', () => {
+    const hasSetActiveModel = typeof library.setActiveModel === 'function';
+    expect(hasSetActiveModel).toBe(true);
   });
 
 });
