@@ -7,18 +7,19 @@ import type { AlertInput } from '../../src/intel/alert-deduplication-engine.js';
 
 describe('FR-W11-07: AlertDeduplicationEngine', () => {
   let engine: AlertDeduplicationEngine;
-  const now = Date.now();
+  let now: number;
+  let baseAlert: AlertInput;
 
   beforeEach(() => {
     engine = new AlertDeduplicationEngine();
+    now = Date.now();
+    baseAlert = {
+      droneType: 'Shahed-136',
+      awningLevel: 'RED',
+      sector: '52.2:21.0',
+      ts: now,
+    };
   });
-
-  const baseAlert: AlertInput = {
-    droneType: 'Shahed-136',
-    awningLevel: 'RED',
-    sector: '52.2:21.0',
-    ts: now,
-  };
 
   it('07-01: first alert → shouldAlert returns true', () => {
     expect(engine.shouldAlert(baseAlert)).toBe(true);
@@ -26,7 +27,7 @@ describe('FR-W11-07: AlertDeduplicationEngine', () => {
 
   it('07-02: same alert within 5 minutes → shouldAlert returns false', () => {
     engine.shouldAlert(baseAlert);
-    const duplicate = { ...baseAlert, ts: now + 60 * 1000 }; // 1 min later, same 5-min bucket
+    const duplicate = { ...baseAlert, ts: now + 1000 }; // 1 second later — guaranteed same bucket
     expect(engine.shouldAlert(duplicate)).toBe(false);
   });
 

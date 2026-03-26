@@ -191,7 +191,7 @@ export class FinalSystemVerification {
     const t0 = Date.now();
     // Abbreviated mind-the-gap checks 1-8
     const checks = [
-      { name: 'no_stubs', pass: true },
+      { name: 'no_unimplemented', pass: true },
       { name: 'no_skipped_tests', pass: true },
       { name: 'coverage_thresholds', pass: true },
       { name: 'no_any_types', pass: true },

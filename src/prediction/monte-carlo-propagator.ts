@@ -79,6 +79,14 @@ export class MonteCarloPropagator {
       return result;
     }
 
+    // Ascending track — no ground impact possible; skip Monte Carlo
+    if (state.vAlt > 0 && state.alt > 0) {
+      const result: MonteCarloResult = { impactSamples: [], sampleCount: this.nSamples, confidence95RadiusM: 0 };
+      this.lastResult = result;
+      this.lastDistribution = null;
+      return result;
+    }
+
     const posSigmaM = options?.positionNoiseSigmaM ?? 50;
     const velSigma = options?.velocityNoiseSigma ?? 5e-5; // 5e-5 deg/s ≈ 5.5m/s lat, 3.6m/s lon
     const posSigmaLat = posSigmaM * LAT_DEG_PER_M;
