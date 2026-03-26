@@ -119,7 +119,10 @@ describe('FR-W15-04: Watchdog Monitor', () => {
     const stuck = { isHealthy: () => new Promise<boolean>(() => {}) }; // never resolves
     wdog.register('stuck', stuck);
     wdog.start();
-    await vi.advanceTimersByTimeAsync(70000);
+    // advance to 10s (interval fires, starts check, sets dead-man)
+    await vi.advanceTimersByTimeAsync(10001);
+    // advance another 61s (dead-man fires)
+    await vi.advanceTimersByTimeAsync(61000);
     expect(criticalSpy).toHaveBeenCalled();
   });
 });
