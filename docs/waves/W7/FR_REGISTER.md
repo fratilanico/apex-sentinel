@@ -13,8 +13,8 @@
 | W4 | 5 | DONE | 70 |
 | W5 | 6 | DONE | 164 |
 | W6 | 10 | DONE | 145 |
-| W7 | 14 | PLANNED | 277 (est.) |
-| **TOTAL** | **55** | | **~906** |
+| W7 | 14 | DONE | 803 |
+| **TOTAL** | **55** | | **1619** |
 
 ---
 
@@ -105,20 +105,20 @@
 
 | FR ID | Title | Wave | Status | Test File | AC Count | Priority |
 |-------|-------|------|--------|-----------|----------|----------|
-| FR-W7-01 | DatasetPipelineV2 (16kHz) | W7 | PLANNED | `__tests__/ml/dataset-pipeline-v2.test.ts` | 7 | P0 |
-| FR-W7-02 | AcousticProfileLibrary + Gerbera/Shahed-131/238 | W7 | PLANNED | `__tests__/ml/acoustic-profile-library-v2.test.ts` | 7 | P0 |
-| FR-W7-03 | TerminalPhaseDetector | W7 | PLANNED | `__tests__/tracking/terminal-phase-detector.test.ts` | 8 | P0 |
-| FR-W7-04 | ElrsRfFingerprint | W7 | PLANNED | `__tests__/rf/elrs-rf-fingerprint.test.ts` | 7 | P0 |
-| FR-W7-05 | BearingTriangulator | W7 | PLANNED | `__tests__/fusion/bearing-triangulator.test.ts` | 8 | P0 |
-| FR-W7-06 | PtzSlaveOutput | W7 | PLANNED | `__tests__/output/ptz-slave-output.test.ts` | 7 | P1 |
-| FR-W7-07 | JammerActivation | W7 | PLANNED | `__tests__/output/jammer-activation.test.ts` | 8 | P1 |
-| FR-W7-08 | PhysicalInterceptCoordinator | W7 | PLANNED | `__tests__/output/physical-intercept-coordinator.test.ts` | 8 | P1 |
-| FR-W7-09 | SentinelPipelineV2 (TdoaSolver injection) | W7 | PLANNED | `__tests__/integration/sentinel-pipeline-v2.test.ts` | 6 | P0 |
-| FR-W7-10 | DemoDashboard | W7 | PLANNED | `__tests__/dashboard/demo-dashboard.test.ts` | 7 | P0 |
-| FR-W7-11 | Per-Profile Metrics Gate (Simpson's Paradox Prevention) | W7 | PLANNED | `tests/ml/FR-W7-11-simpsons-paradox-audit.test.ts` | 10 | P0 |
-| FR-W7-12 | Metamorphic Relations Test Suite | W7 | PLANNED | `tests/ml/FR-W7-12-metamorphic-relations.test.ts` + `tests/ml/consistency-oracle.test.ts` | 10 | P0 |
-| FR-W7-13 | Adversarial Robustness Suite | W7 | PLANNED | `tests/adversarial/AT-01-*.test.ts` through `AT-06-*.test.ts` | 7 | P1 |
-| FR-W7-14 | Chaos Engineering Gates | W7 | PLANNED | `tests/chaos/CE-01-*.test.ts` through `CE-08-*.test.ts` | 8 | P1 |
+| FR-W7-01 | DatasetPipelineV2 (16kHz) | W7 | DONE | `__tests__/ml/dataset-pipeline-v2.test.ts` | 7 | P0 |
+| FR-W7-02 | AcousticProfileLibrary + Gerbera/Shahed-131/238 | W7 | DONE | `__tests__/ml/acoustic-profile-library-v2.test.ts` | 7 | P0 |
+| FR-W7-03 | TerminalPhaseDetector | W7 | DONE | `__tests__/tracking/terminal-phase-detector.test.ts` | 8 | P0 |
+| FR-W7-04 | ElrsRfFingerprint | W7 | DONE | `__tests__/rf/elrs-rf-fingerprint.test.ts` | 7 | P0 |
+| FR-W7-05 | BearingTriangulator | W7 | DONE | `__tests__/fusion/bearing-triangulator.test.ts` | 8 | P0 |
+| FR-W7-06 | PtzSlaveOutput | W7 | DONE | `__tests__/output/ptz-slave-output.test.ts` | 7 | P1 |
+| FR-W7-07 | JammerActivation | W7 | DONE | `__tests__/output/jammer-activation.test.ts` | 8 | P1 |
+| FR-W7-08 | PhysicalInterceptCoordinator | W7 | DONE | `__tests__/output/physical-intercept-coordinator.test.ts` | 8 | P1 |
+| FR-W7-09 | SentinelPipelineV2 (TdoaSolver injection) | W7 | DONE | `__tests__/integration/sentinel-pipeline-v2.test.ts` | 6 | P0 |
+| FR-W7-10 | DemoDashboard | W7 | DONE | `__tests__/dashboard/demo-dashboard.test.ts` | 7 | P0 |
+| FR-W7-11 | Per-Profile Metrics Gate (Simpson's Paradox Prevention) | W7 | DONE | `tests/ml/FR-W7-11-simpsons-paradox-audit.test.ts` | 10 | P0 |
+| FR-W7-12 | Metamorphic Relations Test Suite | W7 | DONE | `tests/ml/FR-W7-12-metamorphic-relations.test.ts` + `tests/ml/consistency-oracle.test.ts` | 10 | P0 |
+| FR-W7-13 | Adversarial Robustness Suite | W7 | DONE | `tests/adversarial/AT-01-*.test.ts` through `AT-06-*.test.ts` | 7 | P1 |
+| FR-W7-14 | Chaos Engineering Gates | W7 | DONE | `tests/chaos/CE-01-*.test.ts` through `CE-08-*.test.ts` | 8 | P1 |
 
 ---
 
