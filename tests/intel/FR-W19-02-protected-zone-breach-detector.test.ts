@@ -113,15 +113,15 @@ describe('FR-W19-02: ProtectedZoneBreachDetector', () => {
     expect(breach!.ttBreachS).toBeGreaterThan(0);
   });
 
-  // 02-04: haversineM between LROP and CERNAVODA → 187km-189km
-  it('02-04: haversineM(LROP, CERNAVODA) → 187000–189000m', () => {
+  // 02-04: haversineM between LROP and CERNAVODA → ~159km straight-line
+  it('02-04: haversineM(LROP, CERNAVODA) → 155000–165000m', () => {
     const detector = new ProtectedZoneBreachDetector();
     const dist = (detector as unknown as { haversineM: (lat1: number, lon1: number, lat2: number, lon2: number) => number }).haversineM(
       44.5713, 26.0849,
       44.3267, 28.0606
     );
-    expect(dist).toBeGreaterThan(187000);
-    expect(dist).toBeLessThan(189000);
+    expect(dist).toBeGreaterThan(155000);
+    expect(dist).toBeLessThan(165000);
   });
 
   // 02-05: aircraft inside both LROP CTR (8km) and LROP Exclusion (5km) → 2 ZoneBreach records
