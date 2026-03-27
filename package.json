@@ -7,7 +7,8 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo": "tsx scripts/demo-live.ts"
   },
   "keywords": ["drone-detection", "acoustic", "rf", "mesh-network"],
   "license": "ISC",
