@@ -18,6 +18,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    setupFiles: ['./vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
@@ -42,6 +43,7 @@ export default defineConfig({
         name: 'p0',
         test: {
           name: 'P0 Smoke',
+          setupFiles: ['./vitest.setup.ts'],
           include: [
             'tests/unit/**/*.test.ts',
             'tests/acoustic/**/*.test.ts',
@@ -60,6 +62,7 @@ export default defineConfig({
         name: 'p1',
         test: {
           name: 'P1 Core',
+          setupFiles: ['./vitest.setup.ts'],
           include: [
             'tests/unit/**/*.test.ts',
             'tests/acoustic/**/*.test.ts',
@@ -89,6 +92,7 @@ export default defineConfig({
         name: 'p2',
         test: {
           name: 'P2 Full Regression',
+          setupFiles: ['./vitest.setup.ts'],
           include: [
             'tests/**/*.test.ts',
           ],
